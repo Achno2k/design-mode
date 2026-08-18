@@ -1,0 +1,1432 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="A practical expansion plan for turning herdr design mode into a broader browser-to-development review platform."
+    />
+    <title>herdr design mode — Expansion Field Guide</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --paper: #f1efe7;
+        --paper-raised: #faf8f0;
+        --ink: #161815;
+        --muted: #62655d;
+        --line: #cbc8bc;
+        --accent: #ff4d24;
+        --blue: #1746d1;
+        --green: #147457;
+        --yellow: #f0c64c;
+        --shadow: 0 18px 60px rgba(38, 35, 26, 0.11);
+        --display: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+        --body: "Avenir Next", Avenir, "Century Gothic", sans-serif;
+        --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      }
+
+      :root[data-theme='night'] {
+        color-scheme: dark;
+        --paper: #151715;
+        --paper-raised: #1d201d;
+        --ink: #edeee6;
+        --muted: #a6aa9e;
+        --line: #3b403a;
+        --accent: #ff6845;
+        --blue: #7396ff;
+        --green: #63cda5;
+        --yellow: #e7c75d;
+        --shadow: 0 22px 70px rgba(0, 0, 0, 0.3);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+        scroll-padding-top: 28px;
+      }
+
+      body {
+        margin: 0;
+        background:
+          linear-gradient(var(--line) 1px, transparent 1px),
+          linear-gradient(90deg, var(--line) 1px, transparent 1px),
+          var(--paper);
+        background-size: 32px 32px;
+        color: var(--ink);
+        font-family: var(--body);
+        line-height: 1.6;
+        transition: background-color 180ms ease, color 180ms ease;
+      }
+
+      body::before {
+        position: fixed;
+        z-index: 20;
+        top: 0;
+        left: 0;
+        width: var(--reading-progress, 0%);
+        height: 4px;
+        background: var(--accent);
+        content: '';
+      }
+
+      button,
+      a {
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      a {
+        color: inherit;
+      }
+
+      .shell {
+        display: grid;
+        grid-template-columns: 280px minmax(0, 1fr);
+        min-height: 100vh;
+      }
+
+      .rail {
+        position: sticky;
+        top: 0;
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        padding: 28px 24px;
+        border-right: 1px solid var(--line);
+        background: color-mix(in srgb, var(--paper) 92%, transparent);
+        backdrop-filter: blur(12px);
+      }
+
+      .wordmark {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        margin-bottom: 36px;
+        font-family: var(--mono);
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+
+      .mark {
+        display: grid;
+        width: 30px;
+        height: 30px;
+        place-items: center;
+        border-radius: 50%;
+        background: var(--accent);
+        color: #fff;
+        font-size: 15px;
+      }
+
+      .eyebrow {
+        margin: 0 0 8px;
+        color: var(--accent);
+        font-family: var(--mono);
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .rail h2 {
+        margin: 0 0 22px;
+        font-family: var(--display);
+        font-size: 27px;
+        font-weight: 500;
+        line-height: 1.05;
+      }
+
+      .rail nav {
+        display: grid;
+        gap: 2px;
+      }
+
+      .rail nav a {
+        display: grid;
+        grid-template-columns: 28px 1fr;
+        padding: 7px 8px;
+        border-radius: 6px;
+        color: var(--muted);
+        font-size: 12px;
+        text-decoration: none;
+        transition: 140ms ease;
+      }
+
+      .rail nav a:hover,
+      .rail nav a[aria-current='true'] {
+        background: var(--paper-raised);
+        color: var(--ink);
+        transform: translateX(3px);
+      }
+
+      .rail nav a[aria-current='true'] {
+        box-shadow: inset 3px 0 var(--accent);
+      }
+
+      .nav-number {
+        color: var(--accent);
+        font-family: var(--mono);
+      }
+
+      .rail-actions {
+        display: flex;
+        gap: 8px;
+        margin-top: auto;
+        padding-top: 18px;
+        border-top: 1px solid var(--line);
+      }
+
+      .icon-button {
+        display: grid;
+        width: 38px;
+        height: 38px;
+        place-items: center;
+        border: 1px solid var(--line);
+        border-radius: 50%;
+        background: var(--paper-raised);
+        color: var(--ink);
+        cursor: pointer;
+        font-size: 15px;
+        transition: 140ms ease;
+      }
+
+      .icon-button:hover {
+        border-color: var(--ink);
+        transform: translateY(-2px);
+      }
+
+      main {
+        width: min(100%, 1180px);
+        padding: 28px 54px 100px;
+      }
+
+      .hero {
+        position: relative;
+        display: grid;
+        min-height: 670px;
+        align-content: center;
+        padding: 80px clamp(28px, 6vw, 88px);
+        overflow: hidden;
+        border: 1px solid var(--line);
+        background: var(--paper-raised);
+        box-shadow: var(--shadow);
+      }
+
+      .hero::after {
+        position: absolute;
+        right: -90px;
+        bottom: -130px;
+        width: 420px;
+        height: 420px;
+        border: 70px solid var(--blue);
+        border-radius: 50%;
+        content: '';
+        opacity: 0.93;
+      }
+
+      .hero::before {
+        position: absolute;
+        top: 58px;
+        right: 55px;
+        width: 130px;
+        height: 130px;
+        background: repeating-linear-gradient(
+          -45deg,
+          transparent 0 8px,
+          var(--yellow) 8px 16px
+        );
+        content: '';
+        transform: rotate(7deg);
+      }
+
+      .hero-copy {
+        position: relative;
+        z-index: 2;
+        max-width: 760px;
+      }
+
+      .hero-kicker {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 26px;
+        font-family: var(--mono);
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+
+      .hero-kicker::before {
+        width: 36px;
+        height: 4px;
+        background: var(--accent);
+        content: '';
+      }
+
+      h1 {
+        max-width: 720px;
+        margin: 0;
+        font-family: var(--display);
+        font-size: clamp(56px, 8vw, 108px);
+        font-weight: 500;
+        letter-spacing: -0.06em;
+        line-height: 0.84;
+      }
+
+      h1 em {
+        color: var(--blue);
+        font-weight: 500;
+      }
+
+      .hero-summary {
+        max-width: 600px;
+        margin: 34px 0 0;
+        color: var(--muted);
+        font-size: clamp(17px, 2vw, 21px);
+        line-height: 1.5;
+      }
+
+      .hero-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 34px;
+      }
+
+      .stamp {
+        padding: 7px 11px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: var(--paper);
+        font-family: var(--mono);
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .section {
+        padding: 105px 0 0;
+      }
+
+      .section-head {
+        display: grid;
+        grid-template-columns: 140px minmax(0, 700px);
+        gap: 26px;
+        align-items: start;
+        margin-bottom: 44px;
+      }
+
+      .section-number {
+        color: var(--accent);
+        font-family: var(--mono);
+        font-size: 13px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+      }
+
+      h2.section-title {
+        margin: 0;
+        font-family: var(--display);
+        font-size: clamp(40px, 5vw, 68px);
+        font-weight: 500;
+        letter-spacing: -0.045em;
+        line-height: 0.98;
+      }
+
+      .section-intro {
+        max-width: 680px;
+        margin: 18px 0 0;
+        color: var(--muted);
+        font-size: 18px;
+      }
+
+      .constraint-strip {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        border: 1px solid var(--ink);
+        background: var(--ink);
+        gap: 1px;
+      }
+
+      .constraint {
+        min-height: 190px;
+        padding: 22px;
+        background: var(--paper-raised);
+      }
+
+      .constraint strong {
+        display: block;
+        margin-bottom: 36px;
+        color: var(--accent);
+        font-family: var(--mono);
+        font-size: 28px;
+      }
+
+      .constraint h3,
+      .card h3,
+      .feature h3 {
+        margin: 0 0 9px;
+        font-size: 17px;
+        line-height: 1.25;
+      }
+
+      .constraint p,
+      .card p,
+      .feature p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      .north-star {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        border-top: 1px solid var(--ink);
+        border-bottom: 1px solid var(--ink);
+      }
+
+      .north-star__label {
+        display: flex;
+        min-height: 280px;
+        align-items: flex-end;
+        padding: 28px;
+        background: var(--blue);
+        color: #fff;
+        font-family: var(--mono);
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+
+      .north-star blockquote {
+        display: flex;
+        margin: 0;
+        align-items: center;
+        padding: clamp(32px, 6vw, 72px);
+        background: var(--paper-raised);
+        font-family: var(--display);
+        font-size: clamp(27px, 4vw, 48px);
+        letter-spacing: -0.035em;
+        line-height: 1.12;
+      }
+
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 14px;
+      }
+
+      .card {
+        position: relative;
+        min-height: 280px;
+        padding: 28px;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        background: var(--paper-raised);
+        transition: 180ms ease;
+      }
+
+      .card:hover {
+        border-color: var(--ink);
+        box-shadow: 9px 9px 0 var(--yellow);
+        transform: translate(-4px, -4px);
+      }
+
+      .card-index {
+        display: block;
+        margin-bottom: 60px;
+        color: var(--accent);
+        font-family: var(--mono);
+        font-size: 12px;
+        font-weight: 800;
+      }
+
+      .card h3 {
+        font-family: var(--display);
+        font-size: 29px;
+        font-weight: 500;
+        letter-spacing: -0.025em;
+      }
+
+      .card ul,
+      .feature ul,
+      .phase ul {
+        margin: 17px 0 0;
+        padding-left: 18px;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      .card li + li,
+      .feature li + li,
+      .phase li + li {
+        margin-top: 6px;
+      }
+
+      .card--wide {
+        grid-column: 1 / -1;
+        display: grid;
+        grid-template-columns: 0.8fr 1.2fr;
+        gap: 40px;
+        min-height: 250px;
+      }
+
+      .code {
+        align-self: end;
+        padding: 19px;
+        overflow-x: auto;
+        border-left: 4px solid var(--green);
+        background: var(--ink);
+        color: #e9eadf;
+        font-family: var(--mono);
+        font-size: 12px;
+        line-height: 1.7;
+        white-space: pre;
+      }
+
+      .feature-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1px;
+        border: 1px solid var(--line);
+        background: var(--line);
+      }
+
+      .feature {
+        min-height: 260px;
+        padding: 25px;
+        background: var(--paper-raised);
+      }
+
+      .feature-icon {
+        display: grid;
+        width: 46px;
+        height: 46px;
+        margin-bottom: 42px;
+        place-items: center;
+        border: 1px solid currentColor;
+        border-radius: 50%;
+        color: var(--blue);
+        font-family: var(--mono);
+        font-size: 18px;
+      }
+
+      .feature h3 {
+        font-family: var(--display);
+        font-size: 24px;
+        font-weight: 500;
+      }
+
+      .architecture {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 12px;
+      }
+
+      .architecture article {
+        position: relative;
+        min-height: 230px;
+        padding: 23px;
+        border: 1px solid var(--ink);
+        background: var(--paper-raised);
+      }
+
+      .architecture article:not(:last-child)::after {
+        position: absolute;
+        z-index: 2;
+        top: 50%;
+        right: -20px;
+        width: 27px;
+        height: 27px;
+        border: 1px solid var(--ink);
+        border-radius: 50%;
+        background: var(--yellow);
+        content: '→';
+        color: #161815;
+        font-family: var(--mono);
+        line-height: 25px;
+        text-align: center;
+      }
+
+      .architecture code {
+        color: var(--accent);
+        font-family: var(--mono);
+        font-size: 11px;
+      }
+
+      .architecture h3 {
+        margin: 55px 0 10px;
+        font-family: var(--display);
+        font-size: 22px;
+        font-weight: 500;
+      }
+
+      .architecture p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .roadmap {
+        display: grid;
+        gap: 0;
+        border-top: 1px solid var(--ink);
+      }
+
+      .phase {
+        display: grid;
+        grid-template-columns: 140px 1fr 110px;
+        gap: 28px;
+        padding: 34px 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .phase-number {
+        color: var(--accent);
+        font-family: var(--display);
+        font-size: 46px;
+        line-height: 1;
+      }
+
+      .phase h3 {
+        margin: 0;
+        font-family: var(--display);
+        font-size: 28px;
+        font-weight: 500;
+      }
+
+      .phase ul {
+        columns: 2;
+      }
+
+      .phase-tag {
+        align-self: start;
+        padding: 6px 9px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        font-family: var(--mono);
+        font-size: 9px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-align: center;
+        text-transform: uppercase;
+      }
+
+      .priority-table {
+        width: 100%;
+        border-collapse: collapse;
+        background: var(--paper-raised);
+      }
+
+      .priority-table th,
+      .priority-table td {
+        padding: 18px 16px;
+        border-bottom: 1px solid var(--line);
+        text-align: left;
+        vertical-align: top;
+      }
+
+      .priority-table th {
+        color: var(--muted);
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .priority-table td:first-child {
+        color: var(--accent);
+        font-family: var(--mono);
+        font-weight: 800;
+      }
+
+      .impact {
+        display: inline-block;
+        padding: 3px 8px;
+        border-radius: 999px;
+        background: color-mix(in srgb, var(--green) 14%, transparent);
+        color: var(--green);
+        font-family: var(--mono);
+        font-size: 10px;
+        font-weight: 800;
+        text-transform: uppercase;
+      }
+
+      .callout {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 40px;
+        align-items: end;
+        margin-top: 100px;
+        padding: clamp(32px, 6vw, 70px);
+        background: var(--accent);
+        color: #fff;
+      }
+
+      .callout h2 {
+        max-width: 720px;
+        margin: 0;
+        font-family: var(--display);
+        font-size: clamp(38px, 6vw, 72px);
+        font-weight: 500;
+        letter-spacing: -0.045em;
+        line-height: 0.98;
+      }
+
+      .callout p {
+        max-width: 600px;
+        margin: 25px 0 0;
+        font-size: 17px;
+      }
+
+      .callout-badge {
+        display: grid;
+        width: 130px;
+        height: 130px;
+        place-items: center;
+        border: 2px solid #fff;
+        border-radius: 50%;
+        font-family: var(--mono);
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-align: center;
+        text-transform: uppercase;
+        transform: rotate(8deg);
+      }
+
+      footer {
+        display: flex;
+        justify-content: space-between;
+        padding: 28px 0 0;
+        color: var(--muted);
+        font-family: var(--mono);
+        font-size: 10px;
+        text-transform: uppercase;
+      }
+
+      .reveal {
+        opacity: 0;
+        transform: translateY(20px);
+        transition: opacity 520ms ease, transform 520ms ease;
+      }
+
+      .reveal.is-visible {
+        opacity: 1;
+        transform: none;
+      }
+
+      @media (max-width: 980px) {
+        .shell {
+          display: block;
+        }
+
+        .rail {
+          position: relative;
+          z-index: 10;
+          display: grid;
+          grid-template-columns: 1fr auto;
+          height: auto;
+          padding: 16px 20px;
+          border-right: 0;
+          border-bottom: 1px solid var(--line);
+        }
+
+        .wordmark {
+          margin: 0;
+        }
+
+        .rail > .eyebrow,
+        .rail > h2,
+        .rail nav {
+          display: none;
+        }
+
+        .rail-actions {
+          margin: 0;
+          padding: 0;
+          border: 0;
+        }
+
+        main {
+          padding: 18px 20px 80px;
+        }
+
+        .hero {
+          min-height: 580px;
+        }
+
+        .constraint-strip,
+        .architecture {
+          grid-template-columns: repeat(2, 1fr);
+        }
+
+        .architecture article:nth-child(2)::after {
+          display: none;
+        }
+      }
+
+      @media (max-width: 700px) {
+        main {
+          padding-inline: 12px;
+        }
+
+        .hero {
+          min-height: 620px;
+          padding: 55px 24px;
+        }
+
+        .hero::before {
+          top: 26px;
+          right: 24px;
+          width: 70px;
+          height: 70px;
+        }
+
+        .hero::after {
+          right: -170px;
+          bottom: -190px;
+        }
+
+        h1 {
+          font-size: clamp(52px, 17vw, 80px);
+        }
+
+        .section {
+          padding-top: 76px;
+        }
+
+        .section-head,
+        .north-star,
+        .cards,
+        .feature-grid,
+        .architecture,
+        .phase,
+        .callout {
+          grid-template-columns: 1fr;
+        }
+
+        .section-head {
+          gap: 8px;
+        }
+
+        .constraint-strip {
+          grid-template-columns: 1fr;
+        }
+
+        .constraint {
+          min-height: 150px;
+        }
+
+        .north-star__label {
+          min-height: 130px;
+        }
+
+        .card--wide {
+          display: block;
+        }
+
+        .code {
+          margin-top: 24px;
+        }
+
+        .architecture article:not(:last-child)::after {
+          display: none;
+        }
+
+        .phase {
+          gap: 10px;
+        }
+
+        .phase ul {
+          columns: 1;
+        }
+
+        .phase-tag {
+          justify-self: start;
+        }
+
+        .priority-table {
+          font-size: 13px;
+        }
+
+        .priority-table th:nth-child(3),
+        .priority-table td:nth-child(3) {
+          display: none;
+        }
+
+        .callout-badge {
+          width: 100px;
+          height: 100px;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+
+        *,
+        *::before,
+        *::after {
+          transition-duration: 0.01ms !important;
+        }
+      }
+
+      @media print {
+        :root {
+          --paper: #fff;
+          --paper-raised: #fff;
+          --ink: #000;
+          --muted: #333;
+          --line: #aaa;
+        }
+
+        body {
+          background: #fff;
+        }
+
+        .shell {
+          display: block;
+        }
+
+        .rail {
+          display: none;
+        }
+
+        main {
+          width: 100%;
+          padding: 0;
+        }
+
+        .hero {
+          min-height: 0;
+          box-shadow: none;
+        }
+
+        .section {
+          break-inside: avoid;
+          padding-top: 45px;
+        }
+
+        .reveal {
+          opacity: 1;
+          transform: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="rail" aria-label="Document navigation">
+        <div class="wordmark"><span class="mark">h</span> design mode</div>
+        <p class="eyebrow">Field guide / 01</p>
+        <h2>From narrow tool to development platform.</h2>
+        <nav>
+          <a href="#limits"><span class="nav-number">01</span><span>Current limits</span></a>
+          <a href="#direction"><span class="nav-number">02</span><span>Product direction</span></a>
+          <a href="#foundations"><span class="nav-number">03</span><span>Core foundations</span></a>
+          <a href="#capabilities"><span class="nav-number">04</span><span>New capabilities</span></a>
+          <a href="#architecture"><span class="nav-number">05</span><span>Architecture</span></a>
+          <a href="#roadmap"><span class="nav-number">06</span><span>Roadmap</span></a>
+          <a href="#priorities"><span class="nav-number">07</span><span>Priorities</span></a>
+        </nav>
+        <div class="rail-actions">
+          <button class="icon-button" id="theme" type="button" title="Toggle theme" aria-label="Toggle theme">◐</button>
+          <button class="icon-button" id="print" type="button" title="Print document" aria-label="Print document">↗</button>
+        </div>
+      </aside>
+
+      <main>
+        <header class="hero reveal">
+          <div class="hero-copy">
+            <div class="hero-kicker">Expansion proposal · 2026</div>
+            <h1>Review the <em>running</em> product.</h1>
+            <p class="hero-summary">
+              A practical plan to evolve herdr design mode from a localhost element picker into a
+              browser-to-development review platform that works across frameworks, environments,
+              agents, and teams.
+            </p>
+            <div class="hero-meta">
+              <span class="stamp">Browser → source</span>
+              <span class="stamp">Source → agent</span>
+              <span class="stamp">Agent → verified result</span>
+            </div>
+          </div>
+        </header>
+
+        <section class="section reveal" id="limits">
+          <div class="section-head">
+            <span class="section-number">01 / Limits</span>
+            <div>
+              <h2 class="section-title">The current path is powerful—but narrow.</h2>
+              <p class="section-intro">
+                Today the product is optimized around one ideal setup. Expansion starts by removing
+                the assumptions that prevent it from travelling.
+              </p>
+            </div>
+          </div>
+
+          <div class="constraint-strip">
+            <article class="constraint">
+              <strong>01</strong>
+              <h3>Local only</h3>
+              <p>Chrome, localhost HTTP, visible elements, and a machine where <code>lsof</code> can find the server.</p>
+            </article>
+            <article class="constraint">
+              <strong>02</strong>
+              <h3>One destination</h3>
+              <p>Every review is coupled to a live herdr pane instead of a portable delivery contract.</p>
+            </article>
+            <article class="constraint">
+              <strong>03</strong>
+              <h3>One-way handoff</h3>
+              <p>The browser sends a note, but never sees acknowledgement, progress, questions, or completion.</p>
+            </article>
+            <article class="constraint">
+              <strong>04</strong>
+              <h3>Ephemeral context</h3>
+              <p>No drafts, history, shared review state, full flows, or durable record beyond files in <code>/tmp</code>.</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="section reveal" id="direction">
+          <div class="section-head">
+            <span class="section-number">02 / Direction</span>
+            <div>
+              <h2 class="section-title">Give the product a larger job.</h2>
+              <p class="section-intro">
+                Do not build another issue tracker or another DevTools clone. Own the handoff between
+                what a person sees and what a developer or agent needs to change it.
+              </p>
+            </div>
+          </div>
+
+          <div class="north-star">
+            <div class="north-star__label">Recommended product statement</div>
+            <blockquote>
+              Select anything in a running application, capture enough technical context to locate
+              and reproduce it, and send it to any coding agent or issue tracker.
+            </blockquote>
+          </div>
+        </section>
+
+        <section class="section reveal" id="foundations">
+          <div class="section-head">
+            <span class="section-number">03 / Foundations</span>
+            <div>
+              <h2 class="section-title">Five changes unlock most of the expansion.</h2>
+              <p class="section-intro">
+                These are platform capabilities rather than isolated features. Each one makes several
+                future use cases possible.
+              </p>
+            </div>
+          </div>
+
+          <div class="cards">
+            <article class="card">
+              <span class="card-index">FOUNDATION / 01</span>
+              <h3>Explicit project integration</h3>
+              <p>Make process inspection a fallback. A Vite, Next, or framework plugin should identify the project and expose reliable source metadata.</p>
+              <ul>
+                <li>Works in Docker, WSL, forwarded ports, and monorepos</li>
+                <li>Supports React 19 without private fiber fields</li>
+                <li>Exposes component name, source file, props, and route</li>
+              </ul>
+            </article>
+
+            <article class="card">
+              <span class="card-index">FOUNDATION / 02</span>
+              <h3>Destination adapters</h3>
+              <p>Keep herdr, but stop making it the only endpoint. Reviews should move through a stable adapter interface.</p>
+              <ul>
+                <li>MCP and local CLI</li>
+                <li>GitHub, Linear, Jira, Slack, and webhooks</li>
+                <li>Markdown and structured JSON export</li>
+              </ul>
+            </article>
+
+            <article class="card">
+              <span class="card-index">FOUNDATION / 03</span>
+              <h3>Durable review sessions</h3>
+              <p>Persist drafts, annotations, status, and history. A reload should never destroy an unfinished review.</p>
+              <ul>
+                <li>Edit, delete, reorder, and reselect annotations</li>
+                <li>Group multiple routes into one review</li>
+                <li>Resolve, reopen, export, and share</li>
+              </ul>
+            </article>
+
+            <article class="card">
+              <span class="card-index">FOUNDATION / 04</span>
+              <h3>Closed feedback loop</h3>
+              <p>Bring agent state back into the page: queued, working, blocked, complete, and ready for verification.</p>
+              <ul>
+                <li>Show questions and changed files</li>
+                <li>Reload and highlight the affected element</li>
+                <li>Accept the result or send a follow-up</li>
+              </ul>
+            </article>
+
+            <article class="card card--wide">
+              <div>
+                <span class="card-index">FOUNDATION / 05</span>
+                <h3>Versioned context collection</h3>
+                <p>Collect useful context through independent capabilities, with clear permission and payload boundaries.</p>
+              </div>
+              <pre class="code">interface ContextCollector {
+  id: string;
+  supports(page: PageContext): boolean;
+  collect(selection: Selection): Promise&lt;ContextResult&gt;;
+}
+
+// screenshot · source · console · network
+// accessibility · tokens · component tree</pre>
+            </article>
+          </div>
+        </section>
+
+        <section class="section reveal" id="capabilities">
+          <div class="section-head">
+            <span class="section-number">04 / Capabilities</span>
+            <div>
+              <h2 class="section-title">Expand what can be reviewed.</h2>
+              <p class="section-intro">
+                Element comments remain the fastest path, but they become one tool inside a richer
+                review session.
+              </p>
+            </div>
+          </div>
+
+          <div class="feature-grid">
+            <article class="feature">
+              <span class="feature-icon">⌖</span>
+              <h3>More annotation types</h3>
+              <ul>
+                <li>Point, region, element, and page-level notes</li>
+                <li>Recorded interaction flows</li>
+                <li>Expected-versus-actual comparisons</li>
+                <li>Priority, category, and status</li>
+              </ul>
+            </article>
+            <article class="feature">
+              <span class="feature-icon">◫</span>
+              <h3>Richer visual context</h3>
+              <ul>
+                <li>Cropped and full-viewport screenshots</li>
+                <li>Before-and-after captures</li>
+                <li>DOM fragment and component ancestry</li>
+                <li>Viewport, route, browser, and operating system</li>
+              </ul>
+            </article>
+            <article class="feature">
+              <span class="feature-icon">≋</span>
+              <h3>Runtime diagnostics</h3>
+              <ul>
+                <li>Console errors and warnings</li>
+                <li>Failed and slow network requests</li>
+                <li>Accessibility violations</li>
+                <li>Application reproduction state</li>
+              </ul>
+            </article>
+            <article class="feature">
+              <span class="feature-icon">✣</span>
+              <h3>Framework coverage</h3>
+              <ul>
+                <li>React 19 and Next.js</li>
+                <li>Vue, Svelte, Astro, and Solid</li>
+                <li>Storybook component resolution</li>
+                <li>Build-time source markers stripped in production</li>
+              </ul>
+            </article>
+            <article class="feature">
+              <span class="feature-icon">↔</span>
+              <h3>Serious live editing</h3>
+              <ul>
+                <li>Box model, flex, grid, and typography controls</li>
+                <li>CSS variables and design tokens</li>
+                <li>Undo, redo, responsive edits, and generated CSS</li>
+                <li>Multi-element changes</li>
+              </ul>
+            </article>
+            <article class="feature">
+              <span class="feature-icon">◎</span>
+              <h3>Automated review</h3>
+              <ul>
+                <li>Accessibility and responsive scans</li>
+                <li>Overflow, clipping, and broken-image detection</li>
+                <li>Token and spacing inconsistencies</li>
+                <li>Visual regression against a baseline</li>
+              </ul>
+            </article>
+          </div>
+        </section>
+
+        <section class="section reveal" id="architecture">
+          <div class="section-head">
+            <span class="section-number">05 / Architecture</span>
+            <div>
+              <h2 class="section-title">Separate the four things that currently move together.</h2>
+              <p class="section-intro">
+                Stable extension points keep project discovery, evidence gathering, persistence, and
+                delivery independently replaceable.
+              </p>
+            </div>
+          </div>
+
+          <div class="architecture">
+            <article>
+              <code>01 / ProjectResolver</code>
+              <h3>Where is this?</h3>
+              <p>Maps a page and environment to a repository, source root, framework, and project identity.</p>
+            </article>
+            <article>
+              <code>02 / ContextCollector</code>
+              <h3>What happened?</h3>
+              <p>Collects selected visual and technical evidence without forcing every review to carry everything.</p>
+            </article>
+            <article>
+              <code>03 / ReviewStore</code>
+              <h3>What is its state?</h3>
+              <p>Owns drafts, durable IDs, history, comments, status changes, and retention.</p>
+            </article>
+            <article>
+              <code>04 / Destination</code>
+              <h3>Who should act?</h3>
+              <p>Delivers a normalized review to herdr, another agent, an issue tracker, or a webhook.</p>
+            </article>
+          </div>
+
+          <div class="cards" style="margin-top: 14px">
+            <article class="card card--wide">
+              <div>
+                <span class="card-index">PROJECT METADATA / EXAMPLE</span>
+                <h3>Prefer explicit identity over process inference.</h3>
+                <p>A tiny development plugin makes project and source resolution deterministic while keeping <code>lsof</code> as a zero-config fallback.</p>
+              </div>
+              <pre class="code">designMode({
+  projectId: 'wallet-web',
+  repoRoot: process.cwd(),
+  sourceRoot: 'src',
+  redact: ['[data-private]', 'input[type=password]'],
+});</pre>
+            </article>
+          </div>
+        </section>
+
+        <section class="section reveal" id="roadmap">
+          <div class="section-head">
+            <span class="section-number">06 / Roadmap</span>
+            <div>
+              <h2 class="section-title">Build outward in four controlled moves.</h2>
+              <p class="section-intro">
+                Reliability comes first, reach second, context third, and the collaborative loop last.
+              </p>
+            </div>
+          </div>
+
+          <div class="roadmap">
+            <article class="phase">
+              <div class="phase-number">01</div>
+              <div>
+                <h3>Dependable every day</h3>
+                <ul>
+                  <li>Persist drafts and sessions</li>
+                  <li>Edit and remove annotations</li>
+                  <li>Fix exact style restoration</li>
+                  <li>Add extension and browser tests</li>
+                  <li>Add local pairing and restrictive CORS</li>
+                  <li>Version the wire protocol</li>
+                </ul>
+              </div>
+              <span class="phase-tag">Foundation</span>
+            </article>
+
+            <article class="phase">
+              <div class="phase-number">02</div>
+              <div>
+                <h3>Reach more projects</h3>
+                <ul>
+                  <li>Vite and Next integration</li>
+                  <li>Explicit project registration</li>
+                  <li>React 19, Vue, and Svelte</li>
+                  <li>HTTPS and custom local domains</li>
+                  <li>Remote ports and containers</li>
+                  <li>Webhook and Markdown adapters</li>
+                </ul>
+              </div>
+              <span class="phase-tag">Distribution</span>
+            </article>
+
+            <article class="phase">
+              <div class="phase-number">03</div>
+              <div>
+                <h3>Comprehensive reviews</h3>
+                <ul>
+                  <li>Viewport and full-page captures</li>
+                  <li>Console and network collectors</li>
+                  <li>Accessibility evidence</li>
+                  <li>Point, region, page, and flow notes</li>
+                  <li>Multi-route sessions</li>
+                  <li>Priority and review status</li>
+                </ul>
+              </div>
+              <span class="phase-tag">Capability</span>
+            </article>
+
+            <article class="phase">
+              <div class="phase-number">04</div>
+              <div>
+                <h3>Close the loop</h3>
+                <ul>
+                  <li>Agent progress in the browser</li>
+                  <li>Follow-up questions</li>
+                  <li>Changed-file reporting</li>
+                  <li>Before-and-after verification</li>
+                  <li>Accept and reopen workflow</li>
+                  <li>Shareable team reviews</li>
+                </ul>
+              </div>
+              <span class="phase-tag">Platform</span>
+            </article>
+          </div>
+        </section>
+
+        <section class="section reveal" id="priorities">
+          <div class="section-head">
+            <span class="section-number">07 / Priorities</span>
+            <div>
+              <h2 class="section-title">If only five things ship, ship these.</h2>
+              <p class="section-intro">
+                This sequence expands the addressable use case without losing the product’s speed and
+                focus.
+              </p>
+            </div>
+          </div>
+
+          <table class="priority-table">
+            <thead>
+              <tr>
+                <th>Rank</th>
+                <th>Improvement</th>
+                <th>Why now</th>
+                <th>Impact</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>01</td>
+                <td><strong>Explicit project and source integration</strong></td>
+                <td>Removes the largest compatibility constraint and makes source locations dependable.</td>
+                <td><span class="impact">Very high</span></td>
+              </tr>
+              <tr>
+                <td>02</td>
+                <td><strong>Destination adapter interface</strong></td>
+                <td>Makes the product useful beyond herdr without rebuilding the browser experience.</td>
+                <td><span class="impact">Very high</span></td>
+              </tr>
+              <tr>
+                <td>03</td>
+                <td><strong>Persistent, editable sessions</strong></td>
+                <td>Turns a fragile one-shot action into a workflow people can trust for real reviews.</td>
+                <td><span class="impact">High</span></td>
+              </tr>
+              <tr>
+                <td>04</td>
+                <td><strong>Richer opt-in context collectors</strong></td>
+                <td>Gives developers and agents enough evidence to reproduce difficult issues.</td>
+                <td><span class="impact">High</span></td>
+              </tr>
+              <tr>
+                <td>05</td>
+                <td><strong>Agent status and verification loop</strong></td>
+                <td>Creates the differentiated end-to-end experience rather than another handoff tool.</td>
+                <td><span class="impact">Strategic</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section class="callout reveal">
+          <div>
+            <h2>The differentiator is not annotation. It is actionable context.</h2>
+            <p>
+              Keep selection instant, make project resolution dependable, collect only the evidence
+              each review needs, and let the result return to the same place where the problem was found.
+            </p>
+          </div>
+          <div class="callout-badge">Browser<br />to fix<br />to proof</div>
+        </section>
+
+        <footer>
+          <span>herdr design mode / expansion field guide</span>
+          <span>Standalone document</span>
+        </footer>
+      </main>
+    </div>
+
+    <script>
+      const root = document.documentElement;
+      const themeButton = document.querySelector('#theme');
+      const printButton = document.querySelector('#print');
+      const sections = [...document.querySelectorAll('main section[id]')];
+      const links = [...document.querySelectorAll('.rail nav a')];
+
+      const savedTheme = localStorage.getItem('design-mode-doc-theme');
+      if (savedTheme === 'night') root.dataset.theme = 'night';
+
+      themeButton.addEventListener('click', () => {
+        const next = root.dataset.theme === 'night' ? 'day' : 'night';
+        root.dataset.theme = next;
+        localStorage.setItem('design-mode-doc-theme', next);
+      });
+
+      printButton.addEventListener('click', () => window.print());
+
+      const revealObserver = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            if (entry.isIntersecting) entry.target.classList.add('is-visible');
+          }
+        },
+        { threshold: 0.08 },
+      );
+
+      document.querySelectorAll('.reveal').forEach((element) => revealObserver.observe(element));
+
+      const navObserver = new IntersectionObserver(
+        (entries) => {
+          const visible = entries
+            .filter((entry) => entry.isIntersecting)
+            .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+          if (!visible) return;
+
+          for (const link of links) {
+            link.setAttribute('aria-current', String(link.hash === `#${visible.target.id}`));
+          }
+        },
+        { rootMargin: '-15% 0px -65% 0px', threshold: [0, 0.2, 0.6] },
+      );
+
+      sections.forEach((section) => navObserver.observe(section));
+
+      function updateProgress() {
+        const scrollable = document.documentElement.scrollHeight - window.innerHeight;
+        const progress = scrollable <= 0 ? 0 : (window.scrollY / scrollable) * 100;
+        document.body.style.setProperty('--reading-progress', `${Math.min(100, progress)}%`);
+      }
+
+      addEventListener('scroll', updateProgress, { passive: true });
+      updateProgress();
+    </script>
+  </body>
+</html>

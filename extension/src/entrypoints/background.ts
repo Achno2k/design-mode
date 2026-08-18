@@ -1,0 +1,146 @@
+import { cropToBox } from '../capture/crop.ts';
+import { readSourceInPage } from '../inspect/source.ts';
+import { fetchTargets, postSend } from '../lib/daemon.ts';
+import { startLiveReload } from '../lib/live-reload.ts';
+import { fail, ok, type Answer, type BackgroundRequest } from '../lib/messaging.ts';
+import type { ContentRequest } from '../lib/messaging.ts';
+
+/**
+ * The service worker.
+ *
+ * Everything that content scripts are not allowed to do happens here: talking
+ * to the daemon (no CORS, because the worker holds the host permission),
+ * capturing the tab, and injecting into the page's own world.
+ */
+
+chrome.runtime.onMessage.addListener((message: BackgroundRequest, sender, respond) => {
+  void handle(message, sender).then(respond);
+  // Keeps the message channel open for the async reply.
+  return true;
+});
+
+chrome.commands.onCommand.addListener((command) => {
+  if (command === 'toggle-design-mode') void toggleActiveTab();
+});
+
+// Reloading the extension detaches the content scripts on every open page, so
+// they are replaced immediately rather than leaving the user to refresh.
+chrome.runtime.onInstalled.addListener(() => void refreshOpenTabs());
+chrome.runtime.onStartup.addListener(() => void refreshOpenTabs());
+
+startLiveReload();
+
+/** Put the current content script into every page the extension covers. */
+async function refreshOpenTabs(): Promise<void> {
+  const tabs = await chrome.tabs.query({ url: ['http://localhost/*', 'http://127.0.0.1/*'] });
+
+  await Promise.all(
+    tabs.map(async (tab) => {
+      if (tab.id === undefined) return;
+      // A tab can refuse injection while it is still loading or has been
+      // discarded; the declared content script covers it once it settles.
+      await injectContentScript(tab.id);
+    }),
+  );
+}
+
+async function handle(
+  message: BackgroundRequest,
+  sender: chrome.runtime.MessageSender,
+): Promise<Answer<unknown>> {
+  switch (message.kind) {
+    case 'get-targets':
+      return fetchTargets(message.url);
+
+    case 'send':
+      return postSend(message.request);
+
+    case 'read-source':
+      return readSourceFromTab(sender.tab?.id, message.marker);
+
+    case 'capture':
+      return captureTab(sender.tab?.windowId, message.box, message.pixelRatio);
+
+    case 'ensure-content':
+      return injectContentScript(message.tabId);
+
+    default:
+      return fail('Unknown request.');
+  }
+}
+
+/**
+ * Run the source reader in the page's own JavaScript world.
+ *
+ * `func` is serialised with `toString()`, which is why `readSourceInPage` has
+ * no imports and takes the marker attribute through `args`.
+ */
+async function readSourceFromTab(tabId: number | undefined, marker: string): Promise<Answer<unknown>> {
+  if (tabId === undefined) return fail('Could not tell which tab asked for this.');
+
+  try {
+    const [result] = await chrome.scripting.executeScript({
+      target: { tabId },
+      world: 'MAIN',
+      func: readSourceInPage,
+      args: [marker],
+    });
+    return ok(result?.result ?? null);
+  } catch (cause) {
+    // A page with a strict policy can refuse the injection; the review is still
+    // useful without a source location, so this is reported as "none found".
+    console.warn('[design-mode] source lookup failed', cause);
+    return ok(null);
+  }
+}
+
+/**
+ * Inject the content script into a tab that does not have one.
+ *
+ * Chrome only runs declared content scripts when a page loads, so any tab that
+ * was already open when the extension was installed or reloaded has none. This
+ * saves the user from having to work out that a refresh is needed.
+ */
+async function injectContentScript(tabId: number): Promise<Answer<true>> {
+  try {
+    await chrome.scripting.executeScript({ target: { tabId }, files: ['content.js'] });
+    return ok(true);
+  } catch {
+    return fail('Design mode only works on http://localhost pages.');
+  }
+}
+
+/**
+ * Screenshot the tab and cut the element out of it.
+ *
+ * Failures are returned rather than swallowed. A review still works without an
+ * image, but silently dropping it left the note promising screenshots that were
+ * never written, which sends the agent looking for files that do not exist.
+ */
+async function captureTab(
+  windowId: number | undefined,
+  box: Parameters<typeof cropToBox>[1],
+  pixelRatio: number,
+): Promise<Answer<string | null>> {
+  if (windowId === undefined) return fail('Could not tell which window to capture.');
+
+  try {
+    const dataUrl = await chrome.tabs.captureVisibleTab(windowId, { format: 'png' });
+    return await cropToBox(dataUrl, box, pixelRatio);
+  } catch (cause) {
+    const reason = cause instanceof Error ? cause.message : String(cause);
+    console.warn('[design-mode] capture failed', cause);
+    return fail(`Screenshot failed: ${reason}`);
+  }
+}
+
+/** Keyboard shortcut path — the popup drives the same content-script message. */
+async function toggleActiveTab(): Promise<void> {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (tab?.id === undefined) return;
+
+  const current = await chrome.tabs.sendMessage(tab.id, { kind: 'get-design-mode' } satisfies ContentRequest);
+  const enabled = current?.ok === true ? !current.value.enabled : true;
+
+  await chrome.tabs.sendMessage(tab.id, { kind: 'set-design-mode', enabled } satisfies ContentRequest);
+}
