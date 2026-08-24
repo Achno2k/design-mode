@@ -55,6 +55,8 @@ export interface DrawingStroke {
 export interface ElementSelection {
   kind: 'element';
   comment: string;
+  /** Page where the annotation was captured. Omitted by older extension builds. */
+  pageUrl?: string;
   /** Lowercase tag name, e.g. "article". */
   tag: string;
   selector: string;
@@ -75,6 +77,8 @@ export interface ElementSelection {
 export interface DrawingSelection {
   kind: 'drawing';
   comment: string;
+  /** Page where the annotation was captured. Omitted by older extension builds. */
+  pageUrl?: string;
   box: SelectionBox;
   strokes: DrawingStroke[];
   /** Base64 PNG cropped to `box`, without a data-URL prefix. */
@@ -85,12 +89,19 @@ export interface DrawingSelection {
 export type Selection = ElementSelection | DrawingSelection;
 
 /** Body of `POST /send`. */
+export interface ReviewPageNote {
+  url: string;
+  comment: string;
+}
+
 export interface SendRequest {
-  /** Page the review was made on. */
+  /** Current page, retained as a fallback for payloads without per-item URLs. */
   url: string;
   /** herdr pane to deliver the review to. */
   paneId: string;
+  /** Legacy single-page note. */
   pageNote?: string;
+  pageNotes?: ReviewPageNote[];
   selections: Selection[];
 }
 

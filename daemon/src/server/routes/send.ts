@@ -50,6 +50,7 @@ export function createSendHandler(deps: SendDeps = { listAgents, sendPrompt, wri
       request.value.selections.length,
       request.value.url,
       pick.value.hasScreenshots,
+      countPages(request.value),
     );
     const sent = await deps.sendPrompt(request.value.paneId, prompt);
     if (!sent.ok) {
@@ -67,3 +68,16 @@ export function createSendHandler(deps: SendDeps = { listAgents, sendPrompt, wri
 }
 
 export const handleSend = createSendHandler();
+
+function countPages(request: { url: string; pageNotes?: { url: string }[]; selections: { pageUrl?: string }[] }): number {
+  const pages = new Set([
+    ...request.selections.flatMap((selection) =>
+      selection.pageUrl === undefined ? [] : [selection.pageUrl],
+    ),
+    ...(request.pageNotes ?? []).map((note) => note.url),
+  ]);
+  if (pages.size === 0 || request.selections.some((selection) => selection.pageUrl === undefined)) {
+    pages.add(request.url);
+  }
+  return pages.size;
+}

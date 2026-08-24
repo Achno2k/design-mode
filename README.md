@@ -57,8 +57,10 @@ unpacked**, and pick `extension/dist`.
    click the pen again, then comment on the marked region.
 5. Add an optional page note in the tray. It can accompany selections or be sent
    on its own when the feedback applies to the whole page.
-6. Select as many elements and drawings as you like — the tray keeps the running
-   count.
+6. Select as many elements and drawings as you like — the tray lists them in a
+   card above the bar, where any one of them can be removed before sending. The
+   session follows the tab across reloads and route changes, so one review can
+   contain annotations and page notes from multiple pages.
 7. Check the agent named in the tray, refresh or change it if needed, then hit
    **Send**.
 
@@ -76,10 +78,14 @@ type into the form you are reviewing, and come back with your selections intact.
 | **Esc** | Close the composer, or stop annotating — selections are kept |
 | **⌘.** | Toggle annotating back on (`Ctrl+.` off macOS) |
 | Bubble button in the tray | The same toggle, with the shortcut on hover |
-| **Exit** in the tray | Ends the session and discards anything unsent |
+| **End session** in the popup | Ends the session and discards anything unsent |
+| The annotation pill in the tray | Opens the card of queued annotations, each removable |
+| Drag the tray's header | Moves the tray anywhere on screen; it is remembered |
+| Chevron in the tray's header | Collapses the tray to its header |
 
-While annotating is off the tray dims but stays put, and the page behaves
-completely normally.
+While annotating is off the tray stays put, and the page behaves completely
+normally. Navigate in the same tab and the tray, queued annotations, and
+page-specific notes are restored on the next page.
 
 ## What the agent receives
 

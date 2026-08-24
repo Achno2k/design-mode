@@ -2,8 +2,16 @@ import { cropToBox } from '../capture/crop.ts';
 import { readSourceInPage } from '../inspect/source.ts';
 import { fetchTargets, postSend } from '../lib/daemon.ts';
 import { startLiveReload } from '../lib/live-reload.ts';
-import { fail, ok, type Answer, type BackgroundRequest } from '../lib/messaging.ts';
-import type { ContentRequest } from '../lib/messaging.ts';
+import {
+  clearReviewSession,
+  fail,
+  ok,
+  readReviewSession,
+  type Answer,
+  type BackgroundRequest,
+  type ContentRequest,
+  writeReviewSession,
+} from '../lib/messaging.ts';
 
 /**
  * The service worker.
@@ -22,6 +30,8 @@ chrome.runtime.onMessage.addListener((message: BackgroundRequest, sender, respon
 chrome.commands.onCommand.addListener((command) => {
   if (command === 'toggle-design-mode') void toggleActiveTab();
 });
+
+chrome.tabs.onRemoved.addListener((tabId) => void clearReviewSession(tabId));
 
 // Reloading the extension detaches the content scripts on every open page, so
 // they are replaced immediately rather than leaving the user to refresh.
@@ -64,9 +74,26 @@ async function handle(
     case 'ensure-content':
       return injectContentScript(message.tabId);
 
+    case 'get-review-session':
+      return withSenderTab(sender, readReviewSession);
+
+    case 'save-review-session':
+      return withSenderTab(sender, (tabId) => writeReviewSession(tabId, message.session));
+
+    case 'clear-review-session':
+      return withSenderTab(sender, clearReviewSession);
+
     default:
       return fail('Unknown request.');
   }
+}
+
+function withSenderTab<T>(
+  sender: chrome.runtime.MessageSender,
+  action: (tabId: number) => Promise<Answer<T>>,
+): Promise<Answer<T>> | Answer<never> {
+  const tabId = sender.tab?.id;
+  return tabId === undefined ? fail('Could not tell which tab owns this review session.') : action(tabId);
 }
 
 /**

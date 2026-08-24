@@ -1,23 +1,31 @@
+import { readPanelPosition, writePanelPosition } from '../lib/panel-position.ts';
 import type { Target } from '../lib/protocol.ts';
+import { createAgentPicker } from './agent-picker.ts';
+import { createAnnotationStack, type AnnotationItem } from './annotations.ts';
 import { fill, make } from './dom.ts';
-import { ANNOTATE_ICON, PEN_ICON, REFRESH_ICON } from './icons.ts';
+import { makeDraggable } from './draggable.ts';
+import { ANNOTATE_ICON, ARROW_UP_ICON, CHEVRON_ICON, PEN_ICON, REFRESH_ICON } from './icons.ts';
 
 /** Tone of the tray's status line. */
 export type StatusTone = 'idle' | 'busy' | 'error' | 'success';
 
-/** The bar along the bottom: which agent, how many selections, and Send. */
+/** The annotation toolbar: which agent, what is queued, and Send. */
 export interface Tray {
   setTargets(targets: Target[], message?: string): void;
-  setCount(count: number): void;
+  /** Replace the queued annotations shown in the card above the bar. */
+  setSelections(items: AnnotationItem[]): void;
   setStatus(text: string, tone: StatusTone): void;
   setRefreshing(refreshing: boolean): void;
   /** Reflect whether element picking is currently on. */
   setAnnotating(active: boolean): void;
   /** Reflect whether freehand drawing is currently on. */
   setDrawing(active: boolean): void;
+  /** Screen space along the bottom that other panels should keep clear of. */
+  reservedBottom(): number;
   selectedPaneId(): string | null;
   selectedTarget(): Target | null;
   pageNote(): string;
+  setPageNote(value: string): void;
   clearPageNote(): void;
   show(): void;
   hide(): void;
@@ -27,8 +35,9 @@ export interface TrayHandlers {
   onSend(): void;
   onRefresh(): void;
   onTargetChange(): void;
+  onPageNoteChange(value: string): void;
   onClear(): void;
-  onExit(): void;
+  onRemoveSelection(index: number): void;
   onToggleAnnotate(): void;
   onToggleDraw(): void;
 }
@@ -39,84 +48,127 @@ export interface TrayHandlers {
  * The daemon's first candidate is only a guess, so it is pre-selected but never
  * sent automatically — the whole point of naming the agent is that a wrong
  * guess is obvious before anything is delivered.
+ *
+ * The bar starts docked above the bottom edge and can be dragged anywhere by
+ * its header, because what is worth annotating is sometimes exactly what the
+ * bar is covering.
  */
 /** Matches the binding handled in the controller. */
-const SHORTCUT = isMac() ? '\u2318.' : 'Ctrl+.';
+const SHORTCUT = isMac() ? '⌘.' : 'Ctrl+.';
+
+/** Height of the docked bar plus its offset, for panels placing themselves. */
+const DOCKED_BAND = 190;
 
 export function createTray(layer: HTMLElement, handlers: TrayHandlers): Tray {
-  const dot = make('span', { className: 'dot dot--unknown' });
-  const select = make('select', { className: 'tray__select' });
-  const refresh = make('button', {
-    className: 'circle circle--sm circle--quiet',
-    attributes: { type: 'button', title: 'Refresh targets', 'aria-label': 'Refresh targets' },
-  });
-  refresh.innerHTML = REFRESH_ICON;
-
-  const note = make('textarea', {
-    className: 'tray__note',
-    attributes: { rows: '1', placeholder: 'Add a note for the whole page…', 'aria-label': 'Page note' },
-  });
-
-  const count = make('span', { className: 'tray__count', text: 'Nothing selected' });
-  const status = make('span', { className: 'status status--idle', text: '' });
-
-  const annotate = make('button', {
-    className: 'circle circle--sm',
-    attributes: { type: 'button', 'aria-label': 'Annotate' },
-  });
-  annotate.innerHTML = ANNOTATE_ICON;
-
-  const tip = make('span', { className: 'tip' });
-  const annotateSlot = fill(make('div', { className: 'tip-anchor' }), tip, annotate);
-
-  const pen = make('button', {
-    className: 'circle circle--sm',
-    attributes: { type: 'button', 'aria-label': 'Draw on page' },
-  });
-  pen.innerHTML = PEN_ICON;
-  const penTip = make('span', { className: 'tip', text: 'Draw on page' });
-  const penSlot = fill(make('div', { className: 'tip-anchor' }), penTip, pen);
-
-  const clear = make('button', { className: 'pill', text: 'Clear' });
-  const exit = make('button', { className: 'pill', text: 'Exit' });
-  const send = make('button', { className: 'pill pill--accent', text: 'Send' });
-
-  const panel = fill(
-    make('div', { className: 'panel tray', attributes: { hidden: '' } }),
-    fill(make('div', { className: 'tray__agent' }), dot, select, refresh),
-    note,
-    make('div', { className: 'tray__rule' }),
-    fill(
-      make('div', { className: 'tray__actions' }),
-      annotateSlot,
-      penSlot,
-      count,
-      status,
-      spacer(),
-      clear,
-      exit,
-      send,
-    ),
-  );
-  layer.append(panel);
-
-  let targets: Target[] = [];
-  let selectionCount = 0;
-  let annotating = false;
-  let drawing = false;
-
-  select.addEventListener('change', () => {
+  const picker = createAgentPicker(() => {
     handlers.onTargetChange();
     showStatusForSelection();
     updateSendDisabled();
   });
+
+  const stack = createAnnotationStack((index) => handlers.onRemoveSelection(index));
+
+  const collapse = iconButton(
+    'circle circle--sm tray__collapse',
+    CHEVRON_ICON,
+    'Collapse',
+    'Collapse the toolbar',
+  );
+  const refresh = iconButton('circle circle--sm', REFRESH_ICON, 'Refresh agents');
+
+  const note = make('textarea', {
+    className: 'tray__note',
+    attributes: { rows: '1', placeholder: 'Optional notes…', 'aria-label': 'Page note' },
+  });
+
+  const status = make('span', { className: 'status status--idle', text: '' });
+
+  const annotate = iconButton('circle tray__tool', ANNOTATE_ICON, 'Annotate');
+  const tip = make('span', { className: 'tip' });
+  const annotateSlot = fill(make('div', { className: 'tip-anchor' }), tip, annotate);
+
+  const pen = iconButton('circle tray__tool', PEN_ICON, 'Draw on page');
+  const penTip = make('span', { className: 'tip', text: 'Draw on page' });
+  const penSlot = fill(make('div', { className: 'tip-anchor' }), penTip, pen);
+
+  const queueCount = make('span', { text: '0 annotations' });
+  const queue = fill(
+    make('button', {
+      className: 'tray__queue',
+      attributes: { type: 'button', hidden: '', 'aria-expanded': 'false' },
+    }),
+    icon(ANNOTATE_ICON),
+    queueCount,
+  );
+
+  const clear = make('button', { className: 'pill', text: 'Clear' });
+  const send = iconButton('circle circle--accent tray__send', ARROW_UP_ICON, 'Send');
+  const sendSlot = fill(
+    make('div', { className: 'tip-anchor' }),
+    make('span', { className: 'tip', text: 'Send' }),
+    send,
+  );
+
+  const head = fill(
+    make('div', { className: 'tray__head' }),
+    picker.element(),
+    fill(make('div', { className: 'tray__head-actions' }), collapse, refresh),
+  );
+
+  const panel = fill(
+    make('div', { className: 'panel tray', attributes: { hidden: '' } }),
+    stack.element(),
+    head,
+    note,
+    fill(
+      make('div', { className: 'tray__actions' }),
+      annotateSlot,
+      penSlot,
+      queue,
+      status,
+      clear,
+      sendSlot,
+    ),
+  );
+  layer.append(panel);
+
+  const drag = makeDraggable(panel, head, {
+    floatingClass: 'tray--floating',
+    draggingClass: 'tray--dragging',
+    onSettle: (position) => {
+      writePanelPosition(position);
+      placeStack();
+    },
+  });
+
+  // Restoring is best-effort and asynchronous, so the bar appears docked and
+  // moves to where it was left once storage answers.
+  void readPanelPosition().then((position) => {
+    if (position !== null) drag.moveTo(position);
+    placeStack();
+  });
+
+  let selectionCount = 0;
+  let annotating = false;
+  let drawing = false;
+
+  collapse.addEventListener('click', toggleCollapsed);
   refresh.addEventListener('click', () => handlers.onRefresh());
   annotate.addEventListener('click', () => handlers.onToggleAnnotate());
   pen.addEventListener('click', () => handlers.onToggleDraw());
   clear.addEventListener('click', () => handlers.onClear());
-  exit.addEventListener('click', () => handlers.onExit());
   send.addEventListener('click', () => handlers.onSend());
-  note.addEventListener('input', () => updateSendDisabled());
+  note.addEventListener('input', () => {
+    updateSendDisabled();
+    handlers.onPageNoteChange(note.value.trim());
+  });
+
+  queue.addEventListener('click', () => {
+    placeStack();
+    stack.toggle();
+    queue.setAttribute('aria-expanded', String(stack.isOpen()));
+    queue.classList.toggle('tray__queue--on', stack.isOpen());
+  });
 
   note.addEventListener('keydown', (event) => {
     // Keep every tray keystroke out of the host page.
@@ -127,19 +179,33 @@ export function createTray(layer: HTMLElement, handlers: TrayHandlers): Tray {
     if (event.shiftKey) return;
 
     event.preventDefault();
-    if (hasSendableContent() && isAllowedTarget(current())) handlers.onSend();
+    if (hasSendableContent() && isAllowedTarget(picker.selected())) handlers.onSend();
   });
   note.addEventListener('keypress', stopKeyboardLeak);
   note.addEventListener('keyup', stopKeyboardLeak);
 
-  function current(): Target | undefined {
-    return targets.find((target) => target.paneId === select.value);
+  /** The card sits above the bar unless the bar has been parked too high. */
+  function placeStack(): void {
+    const room = panel.getBoundingClientRect().top;
+    stack.element().classList.toggle('stack--below', room < 240);
+  }
+
+  function toggleCollapsed(): void {
+    const collapsed = panel.classList.toggle('tray--collapsed');
+    if (collapsed) closeQueue();
+    collapse.title = collapsed ? 'Expand the toolbar' : 'Collapse the toolbar';
+    collapse.setAttribute('aria-label', collapsed ? 'Expand' : 'Collapse');
+  }
+
+  function closeQueue(): void {
+    stack.close();
+    queue.setAttribute('aria-expanded', 'false');
+    queue.classList.remove('tray__queue--on');
   }
 
   /** A busy agent still accepts work, but the user should know before sending. */
   function showStatusForSelection(): void {
-    const target = current();
-    dot.className = `dot dot--${target?.status ?? 'unknown'}`;
+    const target = picker.selected();
 
     if (target?.status === 'working') {
       setStatus('busy · confirm to queue', 'busy');
@@ -154,61 +220,46 @@ export function createTray(layer: HTMLElement, handlers: TrayHandlers): Tray {
 
   function setStatus(text: string, tone: StatusTone): void {
     status.textContent = text;
+    // The row is only so wide; the full sentence stays reachable on hover.
+    status.title = text;
     status.className = `status status--${tone}`;
   }
 
   function updateSendDisabled(): void {
-    send.disabled = !hasSendableContent() || !isAllowedTarget(current());
+    send.disabled = !hasSendableContent() || !isAllowedTarget(picker.selected());
   }
 
   function hasSendableContent(): boolean {
     return selectionCount > 0 || note.value.trim() !== '';
   }
 
-  function selectPane(paneId: string): void {
-    select.value = paneId;
-  }
-
   function updateMode(): void {
     annotate.classList.toggle('circle--on', annotating);
     pen.classList.toggle('circle--on', drawing);
-    panel.classList.toggle('tray--idle', !annotating && !drawing);
     tip.textContent = annotating ? `Stop annotating  ${SHORTCUT}` : `Annotate  ${SHORTCUT}`;
     penTip.textContent = drawing ? 'Finish drawing' : 'Draw on page';
   }
 
   return {
     setTargets(next, message) {
-      const previous = select.value;
-      targets = next;
-      select.disabled = next.length === 0;
+      picker.setTargets(next, message);
 
       if (next.length === 0) {
-        dot.className = 'dot dot--unknown';
-        select.replaceChildren(make('option', { text: message ?? 'No agent found for this page' }));
         setStatus(message ?? '', 'error');
         updateSendDisabled();
         return;
       }
 
-      select.replaceChildren(
-        ...next.map((target) =>
-          make('option', {
-            text: `${target.label}  ·  ${target.paneId}`,
-            attributes: { value: target.paneId },
-          }),
-        ),
-      );
-
-      if (next.some((target) => target.paneId === previous)) selectPane(previous);
       showStatusForSelection();
       updateSendDisabled();
     },
 
-    setCount(value) {
-      selectionCount = value;
-      count.textContent = value === 0 ? 'Nothing selected' : `${value} selected`;
-      count.classList.toggle('tray__count--empty', value === 0);
+    setSelections(items) {
+      selectionCount = items.length;
+      stack.set(items);
+      queue.hidden = items.length === 0;
+      queueCount.textContent = `${items.length} annotation${items.length === 1 ? '' : 's'}`;
+      if (items.length === 0) closeQueue();
       updateSendDisabled();
     },
 
@@ -229,20 +280,56 @@ export function createTray(layer: HTMLElement, handlers: TrayHandlers): Tray {
       updateMode();
     },
 
-    selectedPaneId: () => current()?.paneId ?? null,
-    selectedTarget: () => current() ?? null,
+    // Once dragged, the bar is wherever the user put it, so nothing along the
+    // bottom is reserved and panels may use the full height.
+    reservedBottom: () =>
+      panel.hasAttribute('hidden') || panel.classList.contains('tray--floating') ? 0 : DOCKED_BAND,
+
+    selectedPaneId: () => picker.selected()?.paneId ?? null,
+    selectedTarget: () => picker.selected(),
     pageNote: () => note.value.trim(),
-    clearPageNote: () => {
+    setPageNote(value) {
+      note.value = value;
+      updateSendDisabled();
+    },
+    clearPageNote() {
       note.value = '';
       updateSendDisabled();
     },
-    show: () => panel.removeAttribute('hidden'),
-    hide: () => panel.setAttribute('hidden', ''),
+    show: () => {
+      panel.removeAttribute('hidden');
+      placeStack();
+    },
+    hide: () => {
+      picker.close();
+      closeQueue();
+      panel.setAttribute('hidden', '');
+    },
   };
 }
 
-function isAllowedTarget(target: Target | undefined): boolean {
-  return target !== undefined && target.status !== 'blocked';
+function iconButton(
+  className: string,
+  markup: string,
+  label: string,
+  title = label,
+): HTMLButtonElement {
+  const button = make('button', {
+    className,
+    attributes: { type: 'button', title, 'aria-label': label },
+  });
+  button.innerHTML = markup;
+  return button;
+}
+
+function icon(markup: string): HTMLElement {
+  const element = make('span', { className: 'tray__queue-icon' });
+  element.innerHTML = markup;
+  return element;
+}
+
+function isAllowedTarget(target: Target | null): boolean {
+  return target !== null && target.status !== 'blocked';
 }
 
 function stopKeyboardLeak(event: KeyboardEvent): void {
@@ -253,10 +340,4 @@ function stopKeyboardLeak(event: KeyboardEvent): void {
 function isMac(): boolean {
   const modern = (navigator as { userAgentData?: { platform?: string } }).userAgentData;
   return (modern?.platform ?? navigator.platform).toLowerCase().includes('mac');
-}
-
-function spacer(): HTMLElement {
-  const element = make('span');
-  element.style.flex = '1';
-  return element;
 }

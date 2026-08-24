@@ -92,6 +92,28 @@ test('omits a blank page note', () => {
   assert.equal(parsed.ok && parsed.value.pageNote, undefined);
 });
 
+test('keeps page URLs on annotations and page-scoped notes', () => {
+  const pageUrl = 'http://localhost:3000/pricing';
+  const pageNotes = [{ url: pageUrl, comment: 'Check the whole pricing route.' }];
+  const parsed = parseSendRequest(
+    body({ selections: [{ ...validSelection, pageUrl }], pageNotes }),
+  );
+
+  assert.equal(firstElement(parsed)?.pageUrl, pageUrl);
+  assert.deepEqual(parsed.ok ? parsed.value.pageNotes : undefined, pageNotes);
+});
+
+test('accepts page-scoped notes with zero selections', () => {
+  const pageNotes = [
+    { url: 'http://localhost:3000/pricing', comment: 'Review this page.' },
+    { url: 'http://localhost:3000/checkout', comment: 'Review this page too.' },
+  ];
+  const parsed = parseSendRequest(body({ selections: [], pageNotes }));
+
+  assert.equal(parsed.ok, true);
+  assert.deepEqual(parsed.ok ? parsed.value.pageNotes : undefined, pageNotes);
+});
+
 test('rejects a request when both selections and page note are empty', () => {
   const parsed = parseSendRequest(body({ selections: [], pageNote: '   ' }));
   assert.equal(parsed.ok, false);

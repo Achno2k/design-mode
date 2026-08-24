@@ -21,3 +21,9 @@ export const PEN_ICON = WRAP('<path d="M14.7 5.3l4 4L8.5 19.5 4 20l.5-4.5L14.7 5
 export const ANNOTATE_ICON = WRAP(
   '<path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5H9l-4 3v-3.9A7.5 7.5 0 0 1 4 11.5 7.5 7.5 0 0 1 11.5 4h1A7.5 7.5 0 0 1 20 11.5z"/><path d="M12 8.6v5.4M9.3 11.3h5.4"/>',
 );
+
+/** Chevron pointing down — collapse toggles and select controls. */
+export const CHEVRON_ICON = WRAP('<path d="M6 9l6 6 6-6"/>');
+
+/** Arrow rising out of the bar — the send affordance. */
+export const ARROW_UP_ICON = WRAP('<path d="M12 19V5"/><path d="M5.5 11.5L12 5l6.5 6.5"/>');

@@ -36,7 +36,11 @@ export async function writePick(request: SendRequest, now: Date): Promise<Result
     }
 
     const notePath = join(directory, 'note.md');
-    await writeFile(notePath, renderNote(request.url, rendered, request.pageNote), 'utf8');
+    await writeFile(
+      notePath,
+      renderNote(request.url, rendered, request.pageNote, request.pageNotes),
+      'utf8',
+    );
 
     return ok({
       pickId,

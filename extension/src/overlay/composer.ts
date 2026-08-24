@@ -9,18 +9,31 @@ export interface Draft {
   styleChanges: StyleChange[];
 }
 
+/** What the composer is pointed at, split so the tag can be coloured apart. */
+export interface ElementLabel {
+  /** The lead, such as `<label>` or `Drawing`. */
+  tag: string;
+  /** The rest, such as `.wc-label` or `3 strokes`. */
+  detail: string;
+}
+
 /** The panel that opens on the element you clicked. */
 export interface Composer {
-  open(element: Element, description: string, onSubmit: (draft: Draft) => void): void;
+  open(element: Element, label: ElementLabel, onSubmit: (draft: Draft) => void): void;
   /** Open a comment-only composer beside a freehand drawing. */
   openAt(
     box: SelectionBox,
-    description: string,
+    label: ElementLabel,
     onSubmit: (draft: Draft) => void,
     onDismiss: () => void,
   ): void;
   close(): void;
   isOpen(): boolean;
+}
+
+export interface ComposerOptions {
+  /** Space along the bottom the toolbar is using, read at placement time. */
+  reservedBottom(): number;
 }
 
 /**
@@ -30,13 +43,13 @@ export interface Composer {
  * changes apply to the page immediately, so a change can be demonstrated rather
  * than described. Closing without submitting reverts every live edit.
  */
-/** Height of the tray plus its offset, so the composer never lands on top of it. */
-const TRAY_BAND = 190;
-
-export function createComposer(layer: HTMLElement): Composer {
+export function createComposer(layer: HTMLElement, options: ComposerOptions): Composer {
   const editor = createStyleEditor();
 
-  const label = make('div', { className: 'composer__label' });
+  const tag = make('span', { className: 'composer__tag' });
+  const detail = make('span', { className: 'composer__detail' });
+  const label = fill(make('div', { className: 'composer__label' }), tag, detail);
+
   const input = make('textarea', {
     className: 'composer__input',
     attributes: { rows: '1', placeholder: 'Describe the change…' },
@@ -44,7 +57,7 @@ export function createComposer(layer: HTMLElement): Composer {
 
   const expand = iconButton('circle', SLIDERS_ICON, 'Edit styles live');
   const submit = iconButton('circle circle--accent', CHECK_ICON, 'Add selection');
-  const dismiss = iconButton('circle circle--quiet', CLOSE_ICON, 'Cancel');
+  const dismiss = iconButton('circle circle--sm', CLOSE_ICON, 'Cancel');
 
   const editorPanel = editor.element();
   editorPanel.hidden = true;
@@ -52,7 +65,12 @@ export function createComposer(layer: HTMLElement): Composer {
   const panel = fill(
     make('div', { className: 'panel composer', attributes: { hidden: '' } }),
     label,
-    fill(make('div', { className: 'composer__bar' }), expand, input, dismiss, submit),
+    fill(
+      make('div', { className: 'composer__bar' }),
+      expand,
+      fill(make('div', { className: 'composer__field' }), input, dismiss),
+      submit,
+    ),
     editorPanel,
   );
   layer.append(panel);
@@ -64,10 +82,10 @@ export function createComposer(layer: HTMLElement): Composer {
   let onDismiss: (() => void) | null = null;
 
   function close(): void {
-    const dismiss = onDismiss;
+    const dismissed = onDismiss;
     editor.reset();
     resetPanel();
-    dismiss?.();
+    dismissed?.();
   }
 
   function commit(): void {
@@ -100,6 +118,12 @@ export function createComposer(layer: HTMLElement): Composer {
     onDismiss = null;
   }
 
+  function showLabel(next: ElementLabel): void {
+    tag.textContent = next.tag;
+    detail.textContent = next.detail;
+    detail.hidden = next.detail === '';
+  }
+
   function toggleEditor(): void {
     if (target === null) return;
 
@@ -115,13 +139,14 @@ export function createComposer(layer: HTMLElement): Composer {
     reposition();
   }
 
-  /** Keep the panel beside its element and clear of the tray. */
+  /** Keep the panel beside its element and clear of the toolbar. */
   function reposition(): void {
     if (anchor === null) return;
-    const box = anchor instanceof Element
-      ? anchor.getBoundingClientRect()
-      : new DOMRect(anchor.x, anchor.y, anchor.width, anchor.height);
-    placeNear(panel, box, { reservedBottom: TRAY_BAND });
+    const box =
+      anchor instanceof Element
+        ? anchor.getBoundingClientRect()
+        : new DOMRect(anchor.x, anchor.y, anchor.width, anchor.height);
+    placeNear(panel, box, { reservedBottom: options.reservedBottom() });
   }
 
   /** Grow the input with its content instead of showing a scrollbar. */
@@ -160,30 +185,30 @@ export function createComposer(layer: HTMLElement): Composer {
   input.addEventListener('keyup', suppressHostKeyEvent);
 
   return {
-    open(element, description, handler) {
+    open(element, next, handler) {
       anchor = element;
       target = element;
       editorAttached = false;
       onSubmit = handler;
       onDismiss = null;
       expand.hidden = false;
-      label.textContent = description;
+      showLabel(next);
       panel.removeAttribute('hidden');
       resize();
 
       reposition();
       input.focus();
     },
-    openAt(box, description, handler, dismiss) {
+    openAt(box, next, handler, dismissed) {
       editor.reset();
       anchor = { ...box };
       target = null;
       editorAttached = false;
       onSubmit = handler;
-      onDismiss = dismiss;
+      onDismiss = dismissed;
       expand.hidden = true;
       editorPanel.hidden = true;
-      label.textContent = description;
+      showLabel(next);
       panel.removeAttribute('hidden');
       resize();
 
@@ -196,7 +221,10 @@ export function createComposer(layer: HTMLElement): Composer {
 }
 
 function iconButton(className: string, icon: string, title: string): HTMLButtonElement {
-  const button = make('button', { className, attributes: { type: 'button', title } });
+  const button = make('button', {
+    className,
+    attributes: { type: 'button', title, 'aria-label': title },
+  });
   button.innerHTML = icon;
   return button;
 }

@@ -1,4 +1,11 @@
-import { fail, ok, type Answer, type ContentRequest, type DesignModeState } from '../lib/messaging.ts';
+import {
+  askBackground,
+  fail,
+  ok,
+  type Answer,
+  type ContentRequest,
+  type DesignModeState,
+} from '../lib/messaging.ts';
 import { createController, type Controller } from '../overlay/controller.ts';
 import { OVERLAY_CSS } from '../overlay/styles.ts';
 
@@ -20,6 +27,7 @@ const HOST_ID = 'herdr-design-mode-root';
  * most recently mounted overlay rather than its own stale one.
  */
 const ACTIVE = '__herdrDesignModeActive';
+let resumePromise: Promise<void> = Promise.resolve();
 
 function active(): Controller | null {
   return (window as unknown as Record<string, Controller | undefined>)[ACTIVE] ?? null;
@@ -43,7 +51,9 @@ function mount(): void {
   shadow.append(style, layer);
   document.documentElement.append(host);
 
-  (window as unknown as Record<string, Controller>)[ACTIVE] = createController(layer, host);
+  const controller = createController(layer, host);
+  (window as unknown as Record<string, Controller>)[ACTIVE] = controller;
+  resumePromise = resumeSession(controller);
 
   // Registered unconditionally: after an extension reload the previous listener
   // still exists but can no longer reply, so skipping registration here would
@@ -56,7 +66,16 @@ function mount(): void {
   });
 }
 
+async function resumeSession(controller: Controller): Promise<void> {
+  const stored = await askBackground({ kind: 'get-review-session' });
+  if (stored.ok && stored.value?.open === true && active() === controller) {
+    await controller.resume(stored.value);
+  }
+}
+
 async function handle(message: ContentRequest): Promise<Answer<DesignModeState>> {
+  await resumePromise;
+
   switch (message.kind) {
     case 'set-design-mode': {
       const controller = active();

@@ -1,4 +1,11 @@
-import type { SelectionBox, SelectionSource, SendRequest, SendResponse, TargetsResponse } from './protocol.ts';
+import type {
+  Selection,
+  SelectionBox,
+  SelectionSource,
+  SendRequest,
+  SendResponse,
+  TargetsResponse,
+} from './protocol.ts';
 
 /**
  * Typed wrappers around `chrome.runtime` messaging.
@@ -18,13 +25,25 @@ export function fail(message: string): Answer<never> {
   return { ok: false, error: message };
 }
 
+/** Review state retained while a tab navigates between pages. */
+export interface ReviewSession {
+  open: boolean;
+  picking: boolean;
+  selections: Selection[];
+  /** One draft page note per exact URL. */
+  pageNotes: Record<string, string>;
+}
+
 /** Work the background service worker does on behalf of a page or the popup. */
 export type BackgroundRequest =
   | { kind: 'get-targets'; url: string }
   | { kind: 'read-source'; marker: string }
   | { kind: 'capture'; box: SelectionBox; pixelRatio: number }
   | { kind: 'send'; request: SendRequest }
-  | { kind: 'ensure-content'; tabId: number };
+  | { kind: 'ensure-content'; tabId: number }
+  | { kind: 'get-review-session' }
+  | { kind: 'save-review-session'; session: ReviewSession }
+  | { kind: 'clear-review-session' };
 
 /** What each `BackgroundRequest` resolves to. */
 export interface BackgroundResults {
@@ -33,6 +52,9 @@ export interface BackgroundResults {
   capture: string | null;
   send: SendResponse;
   'ensure-content': true;
+  'get-review-session': ReviewSession | null;
+  'save-review-session': true;
+  'clear-review-session': true;
 }
 
 /** Messages the popup sends into a page's content script. */
@@ -78,6 +100,53 @@ export async function askBackground<K extends BackgroundRequest['kind']>(
 }
 
 /** Ask a page's content script to do something. */
+/** Read a tab-scoped session from extension storage. Background use only. */
+export async function readReviewSession(tabId: number): Promise<Answer<ReviewSession | null>> {
+  try {
+    const key = reviewSessionKey(tabId);
+    const stored = await chrome.storage.session.get(key);
+    return ok(isReviewSession(stored[key]) ? stored[key] : null);
+  } catch (cause) {
+    return fail(describe(cause, 'Could not restore the review session.'));
+  }
+}
+
+/** Save a tab-scoped session so a full-page navigation can restore it. */
+export async function writeReviewSession(tabId: number, session: ReviewSession): Promise<Answer<true>> {
+  try {
+    await chrome.storage.session.set({ [reviewSessionKey(tabId)]: session });
+    return ok(true);
+  } catch (cause) {
+    return fail(describe(cause, 'Could not preserve the review session.'));
+  }
+}
+
+/** Remove a tab's review state after send, clear, or closing the tab. */
+export async function clearReviewSession(tabId: number): Promise<Answer<true>> {
+  try {
+    await chrome.storage.session.remove(reviewSessionKey(tabId));
+    return ok(true);
+  } catch (cause) {
+    return fail(describe(cause, 'Could not clear the review session.'));
+  }
+}
+
+function reviewSessionKey(tabId: number): string {
+  return `review-session:${tabId}`;
+}
+
+function isReviewSession(value: unknown): value is ReviewSession {
+  if (typeof value !== 'object' || value === null) return false;
+  const session = value as Partial<ReviewSession>;
+  return (
+    session.open === true &&
+    typeof session.picking === 'boolean' &&
+    Array.isArray(session.selections) &&
+    typeof session.pageNotes === 'object' &&
+    session.pageNotes !== null
+  );
+}
+
 export async function askContent(
   tabId: number,
   request: ContentRequest,

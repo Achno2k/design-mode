@@ -1,5 +1,5 @@
 import { checkHealth } from '../lib/daemon.ts';
-import { readShortcut } from '../lib/shortcut.ts';
+import { annotateKeys, readShortcutKeys } from '../lib/shortcut.ts';
 import {
   askBackground,
   askContent,
@@ -17,8 +17,9 @@ import {
  */
 
 const dot = element<HTMLSpanElement>('dot');
-const status = element<HTMLSpanElement>('status');
+const status = element<HTMLParagraphElement>('status');
 const toggle = element<HTMLButtonElement>('toggle');
+const refresh = element<HTMLButtonElement>('refresh');
 const shortcut = element<HTMLElement>('shortcut');
 const annotateKey = element<HTMLElement>('annotate-key');
 
@@ -30,29 +31,43 @@ async function start(): Promise<void> {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   tabId = tab?.id;
 
-  shortcut.textContent = (await readShortcut('toggle-design-mode')) ?? 'unassigned';
-  // Handled by the page rather than chrome.commands, so it is stated directly.
-  annotateKey.textContent = isMac() ? '⌘.' : 'Ctrl+.';
+  showKeys(shortcut, (await readShortcutKeys('toggle-design-mode')) ?? ['unassigned']);
+  showKeys(annotateKey, annotateKeys());
 
-  const health = await checkHealth();
-  dot.dataset.up = String(health.ok);
-
-  if (!health.ok) {
-    status.textContent = health.error;
-    return;
-  }
-
-  status.textContent = 'Daemon connected';
-  await refresh();
+  refresh.addEventListener('click', () => void reconnect());
   toggle.addEventListener('click', () => void flip());
+  await reconnect();
 }
 
-async function refresh(): Promise<void> {
+/** Check the daemon, then the page, reporting whichever step fails. */
+async function reconnect(): Promise<void> {
+  refresh.dataset.busy = 'true';
+  refresh.disabled = true;
+  toggle.disabled = true;
+
+  try {
+    const health = await checkHealth();
+    dot.dataset.up = String(health.ok);
+
+    if (!health.ok) {
+      showStatus(health.error, 'error');
+      return;
+    }
+
+    showStatus('Daemon connected');
+    await load();
+  } finally {
+    delete refresh.dataset.busy;
+    refresh.disabled = false;
+  }
+}
+
+async function load(): Promise<void> {
   if (tabId === undefined) return;
 
   const state = await reachPage();
   if (!state.ok) {
-    status.textContent = state.error;
+    showStatus(state.error, 'error');
     return;
   }
 
@@ -63,7 +78,7 @@ async function refresh(): Promise<void> {
   if (state.value.enabled) {
     const picked = state.value.selectionCount;
     const mode = state.value.picking ? 'Annotating' : 'Page interactive';
-    status.textContent = picked === 0 ? mode : `${mode} · ${picked} selected`;
+    showStatus(picked === 0 ? mode : `${mode} · ${picked} selected`);
   }
 }
 
@@ -93,18 +108,29 @@ async function flip(): Promise<void> {
   const state = await askContent(tabId, { kind: 'set-design-mode', enabled });
 
   if (!state.ok) {
-    status.textContent = state.error;
+    showStatus(state.error, 'error');
     return;
   }
 
-  await refresh();
+  await load();
   // The overlay is on the page, so there is nothing left to do in the popup.
   if (enabled) window.close();
 }
 
-function isMac(): boolean {
-  const modern = (navigator as { userAgentData?: { platform?: string } }).userAgentData;
-  return (modern?.platform ?? navigator.platform).toLowerCase().includes('mac');
+function showStatus(text: string, tone: 'normal' | 'error' = 'normal'): void {
+  status.textContent = text;
+  status.dataset.tone = tone;
+}
+
+/** One chip per key, the way the design spells a shortcut out. */
+function showKeys(slot: HTMLElement, keys: string[]): void {
+  slot.replaceChildren(
+    ...keys.map((key) => {
+      const chip = document.createElement('kbd');
+      chip.textContent = key;
+      return chip;
+    }),
+  );
 }
 
 function element<T extends HTMLElement>(id: string): T {

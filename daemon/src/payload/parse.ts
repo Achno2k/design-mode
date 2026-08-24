@@ -4,6 +4,7 @@ import type {
   DrawingSelection,
   DrawingStroke,
   ElementSelection,
+  ReviewPageNote,
   Selection,
   SelectionBox,
   SendRequest,
@@ -27,9 +28,10 @@ export function parseSendRequest(body: unknown): Result<SendRequest> {
   if (paneId === null) return err('"paneId" must be a non-empty string.');
 
   const pageNote = readString(body.pageNote) ?? undefined;
+  const pageNotes = parsePageNotes(body.pageNotes);
   if (!Array.isArray(body.selections)) return err('"selections" must be an array.');
-  if (body.selections.length === 0 && pageNote === undefined) {
-    return err('Provide at least one selection or a non-empty "pageNote".');
+  if (body.selections.length === 0 && pageNote === undefined && pageNotes.length === 0) {
+    return err('Provide at least one selection or a non-empty "pageNote" or "pageNotes" entry.');
   }
 
   const selections: Selection[] = [];
@@ -39,7 +41,13 @@ export function parseSendRequest(body: unknown): Result<SendRequest> {
     selections.push(selection.value);
   }
 
-  return ok({ url, paneId, ...(pageNote === undefined ? {} : { pageNote }), selections });
+  return ok({
+    url,
+    paneId,
+    ...(pageNote === undefined ? {} : { pageNote }),
+    ...(pageNotes.length === 0 ? {} : { pageNotes }),
+    selections,
+  });
 }
 
 function parseSelection(raw: unknown): Result<Selection> {
@@ -58,6 +66,7 @@ function parseElement(raw: Record<string, unknown>): Result<ElementSelection> {
   return ok({
     kind: 'element',
     comment: readString(raw.comment) ?? '',
+    pageUrl: readString(raw.pageUrl) ?? undefined,
     tag: readString(raw.tag) ?? 'unknown',
     selector: readString(raw.selector) ?? '',
     classes: readStringArray(raw.classes),
@@ -94,6 +103,7 @@ function parseDrawing(raw: Record<string, unknown>): Result<DrawingSelection> {
   return ok({
     kind: 'drawing',
     comment,
+    pageUrl: readString(raw.pageUrl) ?? undefined,
     box: box.value,
     strokes,
     screenshot: readString(raw.screenshot) ?? undefined,
@@ -191,6 +201,17 @@ function parseStyleChanges(raw: unknown): StyleChange[] | undefined {
   });
 
   return changes.length === 0 ? undefined : changes;
+}
+
+function parsePageNotes(raw: unknown): ReviewPageNote[] {
+  if (!Array.isArray(raw)) return [];
+
+  return raw.flatMap((entry) => {
+    if (!isRecord(entry)) return [];
+    const url = readString(entry.url);
+    const comment = readString(entry.comment);
+    return url === null || comment === null ? [] : [{ url, comment }];
+  });
 }
 
 function readString(value: unknown): string | null {

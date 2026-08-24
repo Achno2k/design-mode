@@ -8,30 +8,25 @@ const MAC_SYMBOLS: Record<string, string> = {
 };
 
 /**
- * The shortcut Chrome has actually bound to a command.
+ * The keys Chrome has actually bound to a command, one per chip.
  *
  * Read from `chrome.commands` rather than hard-coded, because the manifest only
  * suggests a binding: Chrome drops it when it clashes with something else, and
  * the user can rebind it at any time from `chrome://extensions/shortcuts`.
  */
-export async function readShortcut(name: string): Promise<string | null> {
+export async function readShortcutKeys(name: string): Promise<string[] | null> {
   const commands = await chrome.commands.getAll();
   const shortcut = commands.find((command) => command.name === name)?.shortcut;
 
-  return shortcut === undefined || shortcut === '' ? null : format(shortcut);
+  if (shortcut === undefined || shortcut === '') return null;
+  // Chrome reports bindings as `Alt+Shift+D` on every platform, but macOS
+  // spells the same modifiers with symbols.
+  return shortcut.split('+').map((part) => (isMac() ? MAC_SYMBOLS[part] ?? part : part));
 }
 
-/**
- * Chrome reports bindings as `Alt+Shift+D` on every platform, but macOS spells
- * the same keys with symbols and no separators.
- */
-function format(shortcut: string): string {
-  if (!isMac()) return shortcut;
-
-  return shortcut
-    .split('+')
-    .map((part) => MAC_SYMBOLS[part] ?? part)
-    .join('');
+/** The keys for annotate on / off, which the page handles rather than Chrome. */
+export function annotateKeys(): string[] {
+  return [isMac() ? '⌘' : 'Ctrl', '.'];
 }
 
 function isMac(): boolean {

@@ -53,6 +53,8 @@ export interface DrawingStroke {
 export interface ElementSelection {
   kind: 'element';
   comment: string;
+  /** Page where the annotation was captured. Omitted by older extension builds. */
+  pageUrl?: string;
   tag: string;
   selector: string;
   classes: string[];
@@ -70,6 +72,8 @@ export interface ElementSelection {
 export interface DrawingSelection {
   kind: 'drawing';
   comment: string;
+  /** Page where the annotation was captured. Omitted by older extension builds. */
+  pageUrl?: string;
   box: SelectionBox;
   strokes: DrawingStroke[];
   /** Base64 PNG cropped to `box`, without a data-URL prefix. */
@@ -79,10 +83,18 @@ export interface DrawingSelection {
 /** One element or freehand region the user commented on. */
 export type Selection = ElementSelection | DrawingSelection;
 
+export interface ReviewPageNote {
+  url: string;
+  comment: string;
+}
+
 export interface SendRequest {
+  /** Current page, retained as a fallback for payloads without per-item URLs. */
   url: string;
   paneId: string;
+  /** Legacy single-page note. */
   pageNote?: string;
+  pageNotes?: ReviewPageNote[];
   selections: Selection[];
 }
 

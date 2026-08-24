@@ -1,4 +1,4 @@
-import type { DrawingSelection, ElementSelection, Selection } from './types.ts';
+import type { DrawingSelection, ElementSelection, ReviewPageNote, Selection } from './types.ts';
 
 /** A selection paired with the screenshot filename written next to the note. */
 export interface RenderedSelection {
@@ -7,19 +7,55 @@ export interface RenderedSelection {
 }
 
 /** Turn selections into the concise Markdown note the agent reads. */
-export function renderNote(url: string, items: RenderedSelection[], pageNote?: string): string {
-  const heading = `# Browser review — ${url}`;
-  const intro =
-    items.length === 0
-      ? 'A general page note was added in the browser.'
-      : items.length === 1
-        ? 'One review item was added in the browser.'
-        : `${items.length} review items were added in the browser.`;
+export function renderNote(
+  url: string,
+  items: RenderedSelection[],
+  pageNote?: string,
+  pageNotes: ReviewPageNote[] = [],
+): string {
+  const pages = reviewPages(url, items, pageNotes);
+  const heading = `# Browser review — ${pages.length === 1 ? pages[0] : `${pages.length} pages`}`;
+  const intro = describeReview(items.length, pages.length);
 
   const note = pageNote?.trim();
-  const pageSection = note === undefined || note === '' ? [] : ['## Page note', '', ...quote(note), ''];
+  const legacyPageSection =
+    note === undefined || note === '' ? [] : ['## Page note', '', ...quote(note), ''];
+  const pageSections = pageNotes.flatMap((entry) => [
+    `## Page note — ${entry.url}`,
+    '',
+    ...quote(entry.comment),
+    '',
+  ]);
   const sections = items.map((item, index) => renderSelection(item, index + 1));
-  return [heading, '', intro, '', ...pageSection, ...sections].join('\n').trimEnd() + '\n';
+  return [heading, '', intro, '', ...legacyPageSection, ...pageSections, ...sections]
+    .join('\n')
+    .trimEnd() + '\n';
+}
+
+function describeReview(itemCount: number, pageCount: number): string {
+  if (itemCount === 0) {
+    return pageCount === 1
+      ? 'A general page note was added in the browser.'
+      : `General page notes were added across ${pageCount} pages.`;
+  }
+
+  const items = itemCount === 1 ? 'One review item was' : `${itemCount} review items were`;
+  return pageCount === 1 ? `${items} added in the browser.` : `${items} added across ${pageCount} pages.`;
+}
+
+function reviewPages(
+  fallbackUrl: string,
+  items: RenderedSelection[],
+  pageNotes: ReviewPageNote[],
+): string[] {
+  const pages = new Set([
+    ...items.flatMap(({ selection }) => (selection.pageUrl === undefined ? [] : [selection.pageUrl])),
+    ...pageNotes.map((note) => note.url),
+  ]);
+  if (pages.size === 0 || items.some(({ selection }) => selection.pageUrl === undefined)) {
+    pages.add(fallbackUrl);
+  }
+  return [...pages];
 }
 
 function renderSelection(item: RenderedSelection, position: number): string {
@@ -77,6 +113,7 @@ function renderDrawingFacts(selection: DrawingSelection): string[] {
   );
 
   return [
+    ...(selection.pageUrl === undefined ? [] : [`- page: ${selection.pageUrl}`]),
     `- annotation: freehand drawing with ${selection.strokes.length} ${strokeLabel} and ${pointCount} ${pointLabel}`,
     `- box: ${formatBox(selection)}`,
     `- brushes: ${brushes.map((brush) => `\`${brush}\``).join(', ')}`,
@@ -85,6 +122,8 @@ function renderDrawingFacts(selection: DrawingSelection): string[] {
 
 function renderElementFacts(selection: ElementSelection): string[] {
   const facts: string[] = [`- element: \`<${selection.tag}>\``];
+
+  if (selection.pageUrl !== undefined) facts.push(`- page: ${selection.pageUrl}`);
 
   if (selection.selector !== '') facts.push(`- selector: \`${selection.selector}\``);
   if (selection.classes.length > 0) facts.push(`- classes: \`${selection.classes.join(' ')}\``);
@@ -152,10 +191,12 @@ export function renderPrompt(
   count: number,
   url: string,
   hasScreenshots: boolean,
+  pageCount = 1,
 ): string {
   const subject = count === 0 ? 'a general page note' : count === 1 ? '1 selection' : `${count} selections`;
+  const location = pageCount === 1 ? `on ${url}` : `across ${pageCount} pages`;
   const action = count === 0 ? 'address it.' : 'address each comment.';
   const images = hasScreenshots ? ' Screenshots sit next to it in the same folder.' : '';
 
-  return `Browser review — ${subject} on ${url}. Read @${notePath} and ${action}${images}`;
+  return `Browser review — ${subject} ${location}. Read @${notePath} and ${action}${images}`;
 }

@@ -16,7 +16,9 @@ const NOT_RUNNING =
 
 /** Which herdr agents could act on `pageUrl`. */
 export async function fetchTargets(pageUrl: string): Promise<Answer<TargetsResponse>> {
-  return request<TargetsResponse>(`/targets?url=${encodeURIComponent(pageUrl)}`);
+  return request<TargetsResponse>(`/targets?url=${encodeURIComponent(pageUrl)}`, {
+    cache: 'no-store',
+  });
 }
 
 /** Deliver a review to the chosen agent. */

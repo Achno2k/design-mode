@@ -1,15 +1,28 @@
-import { askBackground, isContextAlive } from '../lib/messaging.ts';
-import type { DrawingSelection, Selection, SelectionBox, Target } from '../lib/protocol.ts';
-import { captureElement, describeElement, describeForHuman, measure, readSource } from './collect.ts';
+import { askBackground, isContextAlive, type ReviewSession } from '../lib/messaging.ts';
+import type { Selection, SelectionBox, Target } from '../lib/protocol.ts';
+import {
+  captureElement,
+  describeElement,
+  describeForHuman,
+  describeParts,
+  measure,
+  readSource,
+} from './collect.ts';
 import { createComposer, type Draft } from './composer.ts';
-import { createDrawing, type DrawingSnapshot } from './drawing.ts';
+import { createDrawing } from './drawing.ts';
 import { createHighlight } from './highlight.ts';
+import { createReviewSessionState, type ReviewSessionState } from './review-session.ts';
+import { createRouteWatcher } from './route-watcher.ts';
+import { toAnnotationItem, toDrawingSelection } from './selection-shapes.ts';
+import { createTargetWatcher } from './target-watcher.ts';
 import { createTray } from './tray.ts';
 
 /** The overlay as the content script sees it. */
 export interface Controller {
   /** Open a review session: show the tray and start picking. */
   start(): Promise<void>;
+  /** Restore a session after this tab navigated to another page. */
+  resume(session: ReviewSession): Promise<void>;
   /** Close the session and discard anything not yet sent. */
   stop(): void;
   isOpen(): boolean;
@@ -27,7 +40,9 @@ export interface Controller {
  */
 export function createController(layer: HTMLElement, host: Element): Controller {
   const highlight = createHighlight(layer);
-  const composer = createComposer(layer);
+  // Reads the toolbar's footprint lazily: it can be dragged, so where it is
+  // now says nothing about where it will be when a composer next opens.
+  const composer = createComposer(layer, { reservedBottom: () => tray.reservedBottom() });
   const selections: Selection[] = [];
   let open = false;
   let picking = false;
@@ -36,6 +51,7 @@ export function createController(layer: HTMLElement, host: Element): Controller 
   let composingDrawing = false;
   let drawingGeneration = 0;
 
+  let reviewSession: ReviewSessionState;
   const tray = createTray(layer, {
     onSend: send,
     onRefresh: () => {
@@ -45,24 +61,48 @@ export function createController(layer: HTMLElement, host: Element): Controller 
     onTargetChange: () => {
       confirmedWorkingPaneId = null;
     },
+    onPageNoteChange: (note) => reviewSession.setPageNote(window.location.href, note, picking),
     onClear: clearAll,
-    onExit: stop,
+    onRemoveSelection: removeSelection,
     onToggleAnnotate: () => setPicking(!picking),
     onToggleDraw: toggleDrawing,
   });
+  reviewSession = createReviewSessionState(selections, () => window.location.href, (message) =>
+    tray.setStatus(message, 'error'),
+  );
   const drawing = createDrawing(layer, {
     onModeChange: (active) => tray.setDrawing(active),
     onCancelRequested: finishDrawing,
   });
+  const targetWatcher = createTargetWatcher(
+    () => window.location.href,
+    (targets, message) => tray.setTargets(targets, message),
+  );
+  const routeWatcher = createRouteWatcher((url) => tray.setPageNote(reviewSession.pageNote(url)));
 
   async function start(): Promise<void> {
     if (open) return;
-    open = true;
-
-    window.addEventListener('keydown', onKeyDown, true);
-    tray.show();
-    setPicking(true);
+    openSession(true);
+    reviewSession.save(picking);
     await loadTargets();
+    if (open) targetWatcher.start();
+  }
+
+  async function resume(stored: ReviewSession): Promise<void> {
+    if (open) return;
+    tray.setPageNote(reviewSession.restore(stored));
+    showSelections();
+    openSession(stored.picking);
+    await loadTargets();
+    if (open) targetWatcher.start();
+  }
+
+  function openSession(shouldPick: boolean): void {
+    open = true;
+    window.addEventListener('keydown', onKeyDown, true);
+    routeWatcher.start();
+    tray.show();
+    setPicking(shouldPick);
   }
 
   function stop(): void {
@@ -70,12 +110,15 @@ export function createController(layer: HTMLElement, host: Element): Controller 
 
     setPicking(false);
     cancelDrawingDraft();
+    targetWatcher.stop();
+    routeWatcher.stop();
     window.removeEventListener('keydown', onKeyDown, true);
 
     open = false;
+    reviewSession.end();
     selections.length = 0;
     confirmedWorkingPaneId = null;
-    tray.setCount(0);
+    showSelections();
     tray.clearPageNote();
     tray.hide();
   }
@@ -101,6 +144,7 @@ export function createController(layer: HTMLElement, host: Element): Controller 
       composer.close();
     }
     tray.setAnnotating(next);
+    if (open) reviewSession.save(picking);
   }
 
   function toggleDrawing(): void {
@@ -128,7 +172,10 @@ export function createController(layer: HTMLElement, host: Element): Controller 
     composingDrawing = true;
     composer.openAt(
       snapshot.box,
-      `Drawing · ${snapshot.strokes.length} stroke${snapshot.strokes.length === 1 ? '' : 's'}`,
+      {
+        tag: 'Drawing',
+        detail: `${snapshot.strokes.length} stroke${snapshot.strokes.length === 1 ? '' : 's'}`,
+      },
       (draft) => void addDrawing(draft),
       abandonDrawing,
     );
@@ -174,6 +221,7 @@ export function createController(layer: HTMLElement, host: Element): Controller 
         tray.setTargets([], answer.error);
         return false;
       }
+      targetWatcher.record(answer.value.candidates, answer.value.message);
       tray.setTargets(answer.value.candidates, answer.value.message);
       return true;
     } finally {
@@ -206,7 +254,7 @@ export function createController(layer: HTMLElement, host: Element): Controller 
     }
 
     highlight.hide();
-    composer.open(element, describeForHuman(describeElement(element)), (draft) => {
+    composer.open(element, describeParts(describeElement(element)), (draft) => {
       void addSelection(element, draft);
     });
   }
@@ -247,11 +295,13 @@ export function createController(layer: HTMLElement, host: Element): Controller 
     selections.push({
       ...describeElement(element),
       comment: draft.comment,
+      pageUrl: window.location.href,
       styleChanges: draft.styleChanges.length > 0 ? draft.styleChanges : undefined,
       source,
       screenshot: shot.ok && shot.value !== null ? shot.value : undefined,
     });
-    tray.setCount(selections.length);
+    showSelections();
+    reviewSession.save(picking);
 
     if (!shot.ok) {
       tray.setStatus(`Added, but ${lowerFirst(shot.error)}`, 'busy');
@@ -277,8 +327,12 @@ export function createController(layer: HTMLElement, host: Element): Controller 
     const committed = drawing.commit() ?? pending;
 
     confirmedWorkingPaneId = null;
-    selections.push(toDrawingSelection(committed, draft.comment, shot.ok ? shot.value : null));
-    tray.setCount(selections.length);
+    selections.push({
+      ...toDrawingSelection(committed, draft.comment, shot.ok ? shot.value : null),
+      pageUrl: window.location.href,
+    });
+    showSelections();
+    reviewSession.save(picking);
 
     if (!shot.ok) {
       tray.setStatus(`Added drawing, but ${lowerFirst(shot.error)}`, 'busy');
@@ -298,16 +352,30 @@ export function createController(layer: HTMLElement, host: Element): Controller 
 
   function clearAll(): void {
     cancelDrawingDraft();
-    selections.length = 0;
+    reviewSession.clearContent(picking);
     confirmedWorkingPaneId = null;
-    tray.setCount(0);
+    showSelections();
     tray.clearPageNote();
     tray.setStatus('', 'idle');
   }
 
+  /** Drop one annotation from the review without touching the rest. */
+  function removeSelection(index: number): void {
+    if (index < 0 || index >= selections.length) return;
+
+    selections.splice(index, 1);
+    confirmedWorkingPaneId = null;
+    showSelections();
+    reviewSession.save(picking);
+    tray.setStatus(selections.length === 0 ? '' : 'Annotation removed.', 'idle');
+  }
+
+  function showSelections(): void {
+    tray.setSelections(selections.map(toAnnotationItem));
+  }
+
   async function send(): Promise<void> {
-    const initialPageNote = tray.pageNote();
-    if (sending || !hasSendableContent(initialPageNote)) return;
+    if (sending || !hasSendableContent()) return;
 
     const requestedPaneId = tray.selectedPaneId();
     if (requestedPaneId === null) return;
@@ -325,8 +393,7 @@ export function createController(layer: HTMLElement, host: Element): Controller 
       }
       if (!confirmTargetReady(target)) return;
 
-      const pageNote = tray.pageNote();
-      if (!hasSendableContent(pageNote)) {
+      if (!hasSendableContent()) {
         tray.setStatus('Nothing to send.', 'idle');
         return;
       }
@@ -337,7 +404,7 @@ export function createController(layer: HTMLElement, host: Element): Controller 
         request: {
           url: window.location.href,
           paneId: target.paneId,
-          ...(pageNote === '' ? {} : { pageNote }),
+          pageNotes: reviewSession.pageNotes(),
           selections,
         },
       });
@@ -349,13 +416,14 @@ export function createController(layer: HTMLElement, host: Element): Controller 
 
       clearAll();
       tray.setStatus(`Sent to ${answer.value.paneId}.`, 'success');
+      void targetWatcher.refresh();
     } finally {
       sending = false;
     }
   }
 
-  function hasSendableContent(pageNote: string): boolean {
-    return selections.length > 0 || pageNote !== '';
+  function hasSendableContent(): boolean {
+    return selections.length > 0 || reviewSession.pageNotes().length > 0;
   }
 
   function confirmTargetReady(target: Target): boolean {
@@ -409,6 +477,7 @@ export function createController(layer: HTMLElement, host: Element): Controller 
 
   return {
     start,
+    resume,
     stop,
     isOpen: () => open,
     isPicking: () => picking,
@@ -419,31 +488,4 @@ export function createController(layer: HTMLElement, host: Element): Controller 
 /** Command-period on macOS, control-period elsewhere. */
 function isAnnotateShortcut(event: KeyboardEvent): boolean {
   return event.key === '.' && (event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey;
-}
-
-function toDrawingSelection(
-  snapshot: DrawingSnapshot,
-  comment: string,
-  screenshot: string | null,
-): DrawingSelection {
-  const { box } = snapshot;
-  return {
-    kind: 'drawing',
-    comment,
-    box: { ...box },
-    strokes: snapshot.strokes.map((stroke) => ({
-      color: stroke.color,
-      width: stroke.width,
-      points: stroke.points.map((point) => ({
-        x: round(point.x - box.x),
-        y: round(point.y - box.y),
-        pressure: point.pressure,
-      })),
-    })),
-    ...(screenshot === null ? {} : { screenshot }),
-  };
-}
-
-function round(value: number): number {
-  return Math.round(value * 100) / 100;
 }

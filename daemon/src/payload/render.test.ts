@@ -89,6 +89,26 @@ test('numbers every selection', () => {
   assert.match(note, /2 review items were added/);
 });
 
+test('identifies every page in a multi-page review', () => {
+  const pricing = 'http://localhost:3000/pricing';
+  const checkout = 'http://localhost:3000/checkout';
+  const note = renderNote(
+    checkout,
+    [
+      { selection: selection({ pageUrl: pricing }), screenshotFile: null },
+      { selection: selection({ pageUrl: checkout }), screenshotFile: null },
+    ],
+    undefined,
+    [{ url: checkout, comment: 'Keep the checkout summary visible.' }],
+  );
+
+  assert.match(note, /^# Browser review — 2 pages$/m);
+  assert.match(note, /2 review items were added across 2 pages/);
+  assert.match(note, /## Page note — http:\/\/localhost:3000\/checkout/);
+  assert.match(note, /- page: http:\/\/localhost:3000\/pricing/);
+  assert.match(note, /- page: http:\/\/localhost:3000\/checkout/);
+});
+
 test('summarizes a drawing without dumping sampled points', () => {
   const drawing: DrawingSelection = {
     kind: 'drawing',
@@ -131,6 +151,12 @@ test('the prompt describes a general page note when there are no selections', ()
   assert.match(prompt, /general page note/);
   assert.doesNotMatch(prompt, /0 selections/);
   assert.match(prompt, /address it\./);
+});
+
+test('the prompt summarizes a multi-page bundle without listing every URL', () => {
+  const prompt = renderPrompt('/tmp/x/note.md', 3, 'http://localhost:3000/checkout', false, 2);
+  assert.match(prompt, /3 selections across 2 pages/);
+  assert.doesNotMatch(prompt, /on http:\/\/localhost/);
 });
 
 test('mentions screenshots only when some were written', () => {

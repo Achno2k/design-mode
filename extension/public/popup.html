@@ -5,147 +5,191 @@
     <style>
       :root {
         color-scheme: dark;
-        --bg: #191a19;
-        --bg-raised: #252725;
-        --text: #f1f2ed;
-        --text-dim: #a1a49c;
-        --text-faint: #6f736b;
-        --accent: #7c9cff;
-        --green: #72d5a7;
-        --red: #ff7c7c;
+
+        --surface: #131313;
+        --surface-high: #2a2a2a;
+        --surface-highest: #353534;
+        --outline-variant: #3e484f;
+        --text: #e5e2e1;
+        --text-dim: #bdc8d1;
+        --accent: #8ed5ff;
+        --accent-bright: #c4e7ff;
+        --on-accent: #00354a;
+        --error: #ffb4ab;
       }
 
       * { box-sizing: border-box; }
 
       body {
-        width: 286px;
+        width: 340px;
         margin: 0;
-        padding: 19px 18px 17px;
-        background: var(--bg);
+        background: var(--surface);
         color: var(--text);
-        font: 13px/1.45 "Avenir Next", Avenir, ui-sans-serif, -apple-system, "Segoe UI", sans-serif;
+        font: 14px/20px "SF Pro", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          Roboto, "Helvetica Neue", sans-serif;
       }
 
-      .title {
+      .bar {
         display: flex;
         align-items: center;
+        justify-content: space-between;
         gap: 8px;
-        margin: 0 0 21px;
-        color: var(--text);
-        font-size: 12px;
-        font-weight: 600;
-        letter-spacing: -0.01em;
+        padding: 8px 16px;
+        background: var(--surface-high);
+        border-bottom: 1px solid var(--outline-variant);
       }
 
-      .title::before {
-        width: 7px;
-        height: 7px;
-        border-radius: 2px;
-        background: var(--accent);
-        content: '';
-        transform: rotate(12deg);
-      }
-
-      .state {
+      .bar__name {
         display: flex;
         align-items: center;
-        gap: 9px;
-        min-height: 20px;
+        gap: 6px;
+        font-size: 12px;
+        line-height: 16px;
+        letter-spacing: 0.02em;
+        font-weight: 700;
       }
 
       .dot {
         flex: none;
-        width: 5px;
-        height: 5px;
+        width: 8px;
+        height: 8px;
         border-radius: 50%;
-        background: var(--red);
-        box-shadow: 0 0 0 3px rgba(255, 124, 124, 0.09);
+        background: var(--error);
       }
 
-      .dot[data-up="true"] {
-        background: var(--green);
-        box-shadow: 0 0 0 3px rgba(114, 213, 167, 0.09);
-      }
+      .dot[data-up="true"] { background: var(--accent); }
 
-      .state__text {
-        min-width: 0;
-        overflow: hidden;
+      .icon-button {
+        display: grid;
+        place-items: center;
+        width: 24px;
+        height: 24px;
+        padding: 0;
+        border: 0;
+        border-radius: 999px;
+        background: transparent;
         color: var(--text-dim);
-        font-size: 12px;
-        text-overflow: ellipsis;
-        white-space: nowrap;
+        cursor: pointer;
+        transition: background 120ms, color 120ms;
+      }
+
+      .icon-button:hover:not(:disabled) { background: rgba(255, 255, 255, 0.05); color: var(--accent); }
+      .icon-button:disabled { opacity: 0.35; cursor: default; }
+      .icon-button svg { width: 15px; height: 15px; }
+      .icon-button[data-busy="true"] svg { animation: spin 700ms linear infinite; }
+
+      @keyframes spin { to { transform: rotate(360deg); } }
+
+      main {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        padding: 16px;
       }
 
       .toggle {
         width: 100%;
-        margin-top: 14px;
-        padding: 9px 12px;
+        padding: 12px 16px;
         border: 0;
-        border-radius: 9px;
-        background: var(--text);
-        color: #151615;
+        border-radius: 8px;
+        background: var(--accent);
+        color: var(--on-accent);
         cursor: pointer;
         font: inherit;
-        font-size: 12px;
+        font-size: 16px;
+        line-height: 24px;
+        letter-spacing: -0.01em;
         font-weight: 600;
-        transition: background 120ms, color 120ms, transform 120ms;
+        transition: opacity 120ms, transform 120ms, background 120ms, color 120ms;
       }
 
-      .toggle:hover:not(:disabled) { background: #fff; }
-      .toggle:active:not(:disabled) { transform: scale(0.985); }
-      .toggle:disabled { opacity: 0.34; cursor: default; }
+      .toggle:hover:not(:disabled) { background: var(--accent-bright); }
+      .toggle:active:not(:disabled) { transform: scale(0.98); }
+      .toggle:disabled { opacity: 0.35; cursor: default; }
 
-      .toggle[data-on="true"] {
-        background: var(--bg-raised);
+      .toggle[data-on="true"] { background: var(--surface-highest); color: var(--text-dim); }
+      .toggle[data-on="true"]:hover { background: #3f3f3e; color: var(--text); }
+
+      .state {
+        margin: -8px 0 0;
         color: var(--text-dim);
+        font-size: 13px;
+        line-height: 18px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
 
-      .toggle[data-on="true"]:hover { background: #2c2e2c; color: var(--text); }
+      .state[data-tone="error"] { color: var(--error); }
 
-      .keys {
-        display: flex;
-        flex-direction: column;
-        gap: 0;
-        margin: 18px 0 0;
-      }
+      .keys { display: flex; flex-direction: column; gap: 12px; margin: 0; }
 
       .keys__row {
         display: flex;
-        min-height: 27px;
         align-items: center;
         justify-content: space-between;
         gap: 12px;
-        color: var(--text-faint);
-        font-size: 11px;
       }
 
-      kbd {
-        padding: 0;
-        background: transparent;
+      .keys__row > span:first-child {
         color: var(--text-dim);
-        font-family: "SFMono-Regular", Consolas, monospace;
-        font-size: 10.5px;
-        letter-spacing: -0.02em;
+        font-size: 13px;
+        line-height: 18px;
+      }
+
+      .keys__combo { display: flex; align-items: center; gap: 4px; }
+
+      kbd {
+        padding: 2px 6px;
+        border: 1px solid var(--outline-variant);
+        border-radius: 4px;
+        background: var(--surface-highest);
+        color: var(--text-dim);
+        font: inherit;
+        font-size: 11px;
+        line-height: 14px;
+        letter-spacing: 0.02em;
+        font-weight: 500;
         white-space: nowrap;
       }
     </style>
   </head>
   <body>
-    <p class="title">herdr design mode</p>
+    <header class="bar">
+      <span class="bar__name"><span class="dot" id="dot"></span>Design Mode</span>
+      <button class="icon-button" id="refresh" type="button" title="Refresh" aria-label="Refresh">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20 12a8 8 0 0 1-13.7 5.6L4 15" />
+          <path d="M4 20v-5h5" />
+          <path d="M4 12A8 8 0 0 1 17.7 6.4L20 9" />
+          <path d="M20 4v5h-5" />
+        </svg>
+      </button>
+    </header>
 
-    <div class="state">
-      <span class="dot" id="dot"></span>
-      <span class="state__text" id="status">Checking the daemon…</span>
-    </div>
+    <main>
+      <button class="toggle" id="toggle" disabled>Start session</button>
+      <p class="state" id="status">Checking the daemon…</p>
 
-    <button class="toggle" id="toggle" disabled>Turn on</button>
-
-    <dl class="keys">
-      <div class="keys__row"><span>Start / end session</span><kbd id="shortcut">—</kbd></div>
-      <div class="keys__row"><span>Annotate on / off</span><kbd id="annotate-key">—</kbd></div>
-      <div class="keys__row"><span>Add selection</span><kbd>Enter</kbd></div>
-      <div class="keys__row"><span>Stop annotating</span><kbd>Esc</kbd></div>
-    </dl>
+      <section class="keys">
+        <div class="keys__row">
+          <span>Start / end session</span>
+          <span class="keys__combo" id="shortcut"><kbd>—</kbd></span>
+        </div>
+        <div class="keys__row">
+          <span>Annotate on / off</span>
+          <span class="keys__combo" id="annotate-key"><kbd>—</kbd></span>
+        </div>
+        <div class="keys__row">
+          <span>Add selection</span>
+          <span class="keys__combo"><kbd>Enter</kbd></span>
+        </div>
+        <div class="keys__row">
+          <span>Stop annotating</span>
+          <span class="keys__combo"><kbd>Esc</kbd></span>
+        </div>
+      </section>
+    </main>
 
     <script type="module" src="popup.js"></script>
   </body>

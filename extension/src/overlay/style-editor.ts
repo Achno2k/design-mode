@@ -8,6 +8,7 @@ import {
 } from '../inspect/editable.ts';
 import type { StyleChange } from '../lib/protocol.ts';
 import { fill, make } from './dom.ts';
+import { CHEVRON_ICON } from './icons.ts';
 
 /** Live style editing for one element. */
 export interface StyleEditor {
@@ -134,8 +135,8 @@ function createRow(property: EditableProperty): Row {
 /** A hex swatch beside the real value, so any CSS colour syntax still works. */
 function colorControl() {
   const swatch = make('input', { className: 'swatch', attributes: { type: 'color' } });
-  const text = make('input', { className: 'field field--flush', attributes: { type: 'text' } });
-  const element = fill(make('div', { className: 'control control--color' }), swatch, text);
+  const text = make('input', { className: 'field', attributes: { type: 'text' } });
+  const element = fill(make('div', { className: 'control' }), swatch, text);
 
   let notify: (value: string) => void = () => {};
 
@@ -170,7 +171,7 @@ function plainControl(property: EditableProperty) {
       ...(property.choices ?? []).map((choice) => make('option', { text: choice, attributes: { value: choice } })),
     );
 
-    const element = fill(make('div', { className: 'control' }), select);
+    const element = fill(make('div', { className: 'control control--select' }), select, chevron());
     let notify: (value: string) => void = () => {};
     let customOption: HTMLOptionElement | null = null;
 
@@ -223,6 +224,7 @@ function plainControl(property: EditableProperty) {
 
   const element = fill(make('div', { className: 'control' }), input);
   if (property.unit !== undefined) {
+    element.classList.add('control--unit');
     element.append(make('span', { className: 'control__unit', text: property.unit }));
   }
 
@@ -240,4 +242,11 @@ function plainControl(property: EditableProperty) {
       notify = handler;
     },
   };
+}
+
+/** The dropdown arrow, drawn beside the value the way the design shows it. */
+function chevron(): HTMLElement {
+  const element = make('span', { className: 'control__chevron' });
+  element.innerHTML = CHEVRON_ICON;
+  return element;
 }

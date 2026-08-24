@@ -56,10 +56,18 @@ export async function captureElement(box: SelectionBox): Promise<Answer<string |
   return askBackground({ kind: 'capture', box, pixelRatio: window.devicePixelRatio });
 }
 
-/** Short label for the popover, so the user can see what they clicked. */
+/** Tag and classes kept apart, so the composer can colour the tag differently. */
+export function describeParts(facts: ElementFacts): { tag: string; detail: string } {
+  return {
+    tag: `<${facts.tag}>`,
+    detail: facts.classes.slice(0, 2).map((name) => `.${name}`).join(''),
+  };
+}
+
+/** Short label for the hover chip, so the user can see what they are over. */
 export function describeForHuman(facts: ElementFacts): string {
-  const classes = facts.classes.slice(0, 2).map((name) => `.${name}`).join('');
-  return `<${facts.tag}>${classes}`;
+  const { tag, detail } = describeParts(facts);
+  return `${tag}${detail}`;
 }
 
 const USEFUL_ATTRIBUTES = ['href', 'name', 'placeholder', 'type', 'alt'] as const;
