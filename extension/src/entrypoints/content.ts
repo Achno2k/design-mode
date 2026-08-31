@@ -18,6 +18,7 @@ import { OVERLAY_CSS } from '../overlay/styles.ts';
  */
 
 const HOST_ID = 'herdr-design-mode-root';
+const DESTROY_EVENT = 'herdr-design-mode-destroy';
 
 /**
  * Shared with any other copy of this script in the same world.
@@ -34,8 +35,10 @@ function active(): Controller | null {
 }
 
 function mount(): void {
-  // Chrome injects content scripts again after an extension reload, and the old
-  // overlay would otherwise stay behind and keep handling clicks.
+  // DOM events cross isolated worlds even when extension reloads do not. This
+  // reaches controllers whose JavaScript expandos the new world cannot see.
+  document.documentElement.dispatchEvent(new CustomEvent(DESTROY_EVENT));
+  active()?.destroy();
   document.getElementById(HOST_ID)?.remove();
 
   const host = document.createElement('div');
@@ -53,6 +56,15 @@ function mount(): void {
 
   const controller = createController(layer, host);
   (window as unknown as Record<string, Controller>)[ACTIVE] = controller;
+  document.documentElement.addEventListener(
+    DESTROY_EVENT,
+    () => {
+      if (active() !== controller) return;
+      controller.destroy();
+      delete (window as unknown as Record<string, Controller | undefined>)[ACTIVE];
+    },
+    { once: true },
+  );
   resumePromise = resumeSession(controller);
 
   // Registered unconditionally: after an extension reload the previous listener

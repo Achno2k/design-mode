@@ -34,11 +34,29 @@ export interface ReviewSession {
   pageNotes: Record<string, string>;
 }
 
+export interface CaptureRequest {
+  box: SelectionBox;
+  pixelRatio: number;
+  scrollX: number;
+  scrollY: number;
+  viewportWidth: number;
+  viewportHeight: number;
+}
+
+export interface CapturedScreenshot {
+  screenshotBlobId?: string;
+  screenshot?: string;
+  /** Shown in the tray when blob upload fell back to inline delivery. */
+  notice?: string;
+  /** Added to the review when a complete image could not be captured. */
+  incompleteReason?: string;
+}
+
 /** Work the background service worker does on behalf of a page or the popup. */
 export type BackgroundRequest =
   | { kind: 'get-targets'; url: string }
   | { kind: 'read-source'; marker: string }
-  | { kind: 'capture'; box: SelectionBox; pixelRatio: number }
+  | { kind: 'capture'; request: CaptureRequest }
   | { kind: 'send'; request: SendRequest }
   | { kind: 'ensure-content'; tabId: number }
   | { kind: 'get-review-session' }
@@ -49,7 +67,7 @@ export type BackgroundRequest =
 export interface BackgroundResults {
   'get-targets': TargetsResponse;
   'read-source': SelectionSource | null;
-  capture: string | null;
+  capture: CapturedScreenshot;
   send: SendResponse;
   'ensure-content': true;
   'get-review-session': ReviewSession | null;
@@ -99,7 +117,66 @@ export async function askBackground<K extends BackgroundRequest['kind']>(
   }
 }
 
-/** Ask a page's content script to do something. */
+/** Capture the visible viewport from background code. */
+export async function captureVisibleWindow(windowId: number): Promise<Answer<string>> {
+  try {
+    return ok(await chrome.tabs.captureVisibleTab(windowId, { format: 'png' }));
+  } catch (cause) {
+    return fail(describe(cause, 'Chrome could not capture this tab.'));
+  }
+}
+
+/** Move a tab and wait for two painted frames before it is captured. */
+export async function scrollTab(
+  tabId: number,
+  x: number,
+  y: number,
+): Promise<Answer<{ x: number; y: number }>> {
+  try {
+    const [result] = await chrome.scripting.executeScript({
+      target: { tabId },
+      world: 'MAIN',
+      func: async (left: number, top: number) => {
+        const elements = [document.documentElement, document.body].filter(
+          (element): element is HTMLElement => element !== null,
+        );
+        const originals = elements.map((element) => ({
+          element,
+          behavior: element.style.getPropertyValue('scroll-behavior'),
+          behaviorPriority: element.style.getPropertyPriority('scroll-behavior'),
+          snap: element.style.getPropertyValue('scroll-snap-type'),
+          snapPriority: element.style.getPropertyPriority('scroll-snap-type'),
+        }));
+        for (const original of originals) {
+          original.element.style.setProperty('scroll-behavior', 'auto', 'important');
+          original.element.style.setProperty('scroll-snap-type', 'none', 'important');
+        }
+
+        window.scrollTo(left, top);
+        await new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        );
+        const position = { x: window.scrollX, y: window.scrollY };
+        for (const original of originals) {
+          original.element.style.setProperty(
+            'scroll-behavior',
+            original.behavior,
+            original.behaviorPriority,
+          );
+          original.element.style.setProperty('scroll-snap-type', original.snap, original.snapPriority);
+        }
+        return position;
+      },
+      args: [x, y],
+    });
+    return result?.result === undefined
+      ? fail('Chrome could not read the page scroll position.')
+      : ok(result.result);
+  } catch (cause) {
+    return fail(describe(cause, 'Chrome could not scroll the page for a full screenshot.'));
+  }
+}
+
 /** Read a tab-scoped session from extension storage. Background use only. */
 export async function readReviewSession(tabId: number): Promise<Answer<ReviewSession | null>> {
   try {

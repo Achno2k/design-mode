@@ -1,4 +1,4 @@
-import { cropToBox } from '../capture/crop.ts';
+import { captureTabScreenshot } from '../capture/tab.ts';
 import { readSourceInPage } from '../inspect/source.ts';
 import { fetchTargets, postSend } from '../lib/daemon.ts';
 import { startLiveReload } from '../lib/live-reload.ts';
@@ -69,7 +69,7 @@ async function handle(
       return readSourceFromTab(sender.tab?.id, message.marker);
 
     case 'capture':
-      return captureTab(sender.tab?.windowId, message.box, message.pixelRatio);
+      return captureTabScreenshot(sender.tab?.id, sender.tab?.windowId, message.request);
 
     case 'ensure-content':
       return injectContentScript(message.tabId);
@@ -134,30 +134,6 @@ async function injectContentScript(tabId: number): Promise<Answer<true>> {
     return ok(true);
   } catch {
     return fail('Design mode only works on http://localhost pages.');
-  }
-}
-
-/**
- * Screenshot the tab and cut the element out of it.
- *
- * Failures are returned rather than swallowed. A review still works without an
- * image, but silently dropping it left the note promising screenshots that were
- * never written, which sends the agent looking for files that do not exist.
- */
-async function captureTab(
-  windowId: number | undefined,
-  box: Parameters<typeof cropToBox>[1],
-  pixelRatio: number,
-): Promise<Answer<string | null>> {
-  if (windowId === undefined) return fail('Could not tell which window to capture.');
-
-  try {
-    const dataUrl = await chrome.tabs.captureVisibleTab(windowId, { format: 'png' });
-    return await cropToBox(dataUrl, box, pixelRatio);
-  } catch (cause) {
-    const reason = cause instanceof Error ? cause.message : String(cause);
-    console.warn('[design-mode] capture failed', cause);
-    return fail(`Screenshot failed: ${reason}`);
   }
 }
 

@@ -1,12 +1,22 @@
 /** How a property is edited in the panel. */
 export type EditorKind = 'color' | 'number' | 'text' | 'choice';
 
+/**
+ * Which band of the editor a property belongs to.
+ *
+ * The panel is long enough that an unbroken list reads as a wall. Grouping by
+ * what the properties are *for* gives the eye somewhere to rest and puts the
+ * things people reach for together within reach of each other.
+ */
+export type EditorGroup = 'appearance' | 'typography' | 'layout' | 'border';
+
 /** One row in the live style editor. */
 export interface EditableProperty {
   /** The CSS property, as written in a stylesheet. */
   property: string;
   label: string;
   kind: EditorKind;
+  group: EditorGroup;
   /** Appended to numeric input before the value is applied. */
   unit?: string;
   step?: number;
@@ -20,52 +30,52 @@ export interface EditableProperty {
  * looks wrong, not a replacement for the styles panel in devtools.
  */
 export const EDITABLE_PROPERTIES: EditableProperty[] = [
-  { property: 'color', label: 'Text color', kind: 'color' },
-  { property: 'background-color', label: 'Background', kind: 'color' },
-  { property: 'opacity', label: 'Opacity', kind: 'number', step: 0.05 },
-  { property: 'font-family', label: 'Font', kind: 'text' },
-  { property: 'font-size', label: 'Font size', kind: 'number', unit: 'px' },
+  { property: 'color', label: 'Text color', group: 'appearance', kind: 'color' },
+  { property: 'background-color', label: 'Background', group: 'appearance', kind: 'color' },
+  { property: 'opacity', label: 'Opacity', group: 'appearance', kind: 'number', step: 0.05 },
+  { property: 'font-family', label: 'Font', group: 'typography', kind: 'text' },
+  { property: 'font-size', label: 'Font size', group: 'typography', kind: 'number', unit: 'px' },
   {
     property: 'font-weight',
     label: 'Font weight',
-    kind: 'choice',
+    group: 'typography', kind: 'choice',
     choices: ['300', '400', '500', '600', '700', '800', '900'],
   },
-  { property: 'line-height', label: 'Line height', kind: 'number', unit: 'px' },
-  { property: 'letter-spacing', label: 'Letter spacing', kind: 'number', unit: 'px' },
-  { property: 'padding', label: 'Padding', kind: 'text' },
-  { property: 'margin', label: 'Margin', kind: 'text' },
-  { property: 'width', label: 'Width', kind: 'number', unit: 'px' },
-  { property: 'height', label: 'Height', kind: 'number', unit: 'px' },
-  { property: 'gap', label: 'Gap', kind: 'text' },
+  { property: 'line-height', label: 'Line height', group: 'typography', kind: 'number', unit: 'px' },
+  { property: 'letter-spacing', label: 'Letter spacing', group: 'typography', kind: 'number', unit: 'px' },
+  { property: 'padding', label: 'Padding', group: 'layout', kind: 'text' },
+  { property: 'margin', label: 'Margin', group: 'layout', kind: 'text' },
+  { property: 'width', label: 'Width', group: 'layout', kind: 'number', unit: 'px' },
+  { property: 'height', label: 'Height', group: 'layout', kind: 'number', unit: 'px' },
+  { property: 'gap', label: 'Gap', group: 'layout', kind: 'text' },
   {
     property: 'display',
     label: 'Display',
-    kind: 'choice',
+    group: 'layout', kind: 'choice',
     choices: ['block', 'inline', 'inline-block', 'flex', 'inline-flex', 'grid'],
   },
   {
     property: 'flex-direction',
     label: 'Flex direction',
-    kind: 'choice',
+    group: 'layout', kind: 'choice',
     choices: ['row', 'row-reverse', 'column', 'column-reverse'],
   },
   {
     property: 'align-items',
     label: 'Align items',
-    kind: 'choice',
+    group: 'layout', kind: 'choice',
     choices: ['stretch', 'flex-start', 'center', 'flex-end', 'baseline'],
   },
   {
     property: 'justify-content',
     label: 'Justify content',
-    kind: 'choice',
+    group: 'layout', kind: 'choice',
     choices: ['flex-start', 'center', 'flex-end', 'space-between', 'space-around', 'space-evenly'],
   },
-  { property: 'border-width', label: 'Border width', kind: 'text' },
-  { property: 'border-color', label: 'Border color', kind: 'color' },
-  { property: 'box-shadow', label: 'Shadow', kind: 'text' },
-  { property: 'border-radius', label: 'Radius', kind: 'number', unit: 'px' },
+  { property: 'border-width', label: 'Border width', group: 'border', kind: 'text' },
+  { property: 'border-color', label: 'Border color', group: 'border', kind: 'color' },
+  { property: 'box-shadow', label: 'Shadow', group: 'border', kind: 'text' },
+  { property: 'border-radius', label: 'Radius', group: 'border', kind: 'number', unit: 'px' },
 ];
 
 /** Computed values that mean "nothing set", which should show as an empty field. */

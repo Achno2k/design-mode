@@ -9,7 +9,8 @@
 
 export interface SelectionSource {
   file: string;
-  line: number;
+  /** Omitted when a framework exposes the file but not a trustworthy line. */
+  line?: number;
   column?: number;
 }
 
@@ -23,6 +24,12 @@ export interface SelectionBox {
 /** A style the user changed live in the browser to show what they meant. */
 export interface StyleChange {
   property: string;
+  from: string;
+  to: string;
+}
+
+/** The element's text content, retyped live in the browser. */
+export interface TextChange {
   from: string;
   to: string;
 }
@@ -65,7 +72,11 @@ export interface ElementSelection {
   source?: SelectionSource;
   /** Live edits made in the overlay, as an exact before and after. */
   styleChanges?: StyleChange[];
-  /** Base64 PNG cropped to `box`, without a data-URL prefix. */
+  /** Live text edit made in the overlay, as an exact before and after. */
+  textChange?: TextChange;
+  /** Id returned by POST /blob. Preferred over `screenshot`. */
+  screenshotBlobId?: string;
+  /** Legacy inline base64 PNG, no data-URL prefix. Still accepted. */
   screenshot?: string;
 }
 
@@ -76,7 +87,9 @@ export interface DrawingSelection {
   pageUrl?: string;
   box: SelectionBox;
   strokes: DrawingStroke[];
-  /** Base64 PNG cropped to `box`, without a data-URL prefix. */
+  /** Id returned by POST /blob. Preferred over `screenshot`. */
+  screenshotBlobId?: string;
+  /** Legacy inline base64 PNG, no data-URL prefix. Still accepted. */
   screenshot?: string;
 }
 
@@ -125,4 +138,18 @@ export interface TargetsResponse {
   candidates: Target[];
   /** Present when nothing matched; safe to show to the user. */
   message?: string;
+  /** How projectDir was determined. */
+  source: 'lsof' | 'none';
 }
+
+export interface HealthResponse {
+  ok: true;
+  protocol: 2;
+  /** First 4 chars of the token, so the popup can identify the pairing. */
+  tokenHint: string;
+}
+
+export interface BlobResponse {
+  blobId: string;
+}
+

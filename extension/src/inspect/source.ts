@@ -38,10 +38,7 @@ export function readSourceInPage(marker: string): SelectionSource | null {
 
       // The Vue plugin packs everything into one attribute: "src/App.vue:12:3".
       const packed = current.getAttribute('data-v-inspector');
-      if (packed !== null) {
-        const parts = packed.split(':');
-        if (parts.length >= 2) return build(parts[0], parts[1], parts[2]);
-      }
+      if (packed !== null) return fromPackedSource(packed);
     }
     return null;
   }
@@ -74,7 +71,27 @@ export function readSourceInPage(marker: string): SelectionSource | null {
       | { type?: { __file?: string } }
       | null;
     const file = instance?.type?.__file;
-    return file === undefined ? null : { file, line: 1 };
+    return file === undefined ? null : { file };
+  }
+
+  /** Paths may contain colons, so only numeric suffixes are split off. */
+  function fromPackedSource(packed: string): SelectionSource | null {
+    const lastColon = packed.lastIndexOf(':');
+    if (lastColon < 1) return null;
+
+    const tail = packed.slice(lastColon + 1);
+    const beforeTail = packed.slice(0, lastColon);
+    const previousColon = beforeTail.lastIndexOf(':');
+    const possibleLine = previousColon < 0 ? '' : beforeTail.slice(previousColon + 1);
+
+    if (previousColon >= 1 && isLine(possibleLine) && isLine(tail)) {
+      return build(beforeTail.slice(0, previousColon), possibleLine, tail);
+    }
+    return build(beforeTail, tail, undefined);
+  }
+
+  function isLine(value: string): boolean {
+    return /^\d+$/.test(value) && Number(value) > 0;
   }
 
   function readDebugSource(fiber: FiberLike): SelectionSource | null {
