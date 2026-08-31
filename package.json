@@ -1,9 +1,45 @@
 {
   "name": "herdr-design-mode",
-  "version": "0.2.0",
-  "private": true,
+  "version": "0.3.0",
+  "description": "Select components on a local dev server, comment on them, and send them to the herdr agent working on that project.",
+  "license": "MIT",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Achno2k/design-mode.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Achno2k/design-mode/issues"
+  },
+  "homepage": "https://github.com/Achno2k/design-mode#readme",
+  "keywords": [
+    "herdr",
+    "chrome-extension",
+    "design-mode",
+    "dev-tools",
+    "code-review",
+    "ai-agent"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "bin": {
     "herdr-design-mode": "bin/herdr-design-mode.mjs"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "extension/dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "npm run build:daemon && npm run build:extension",
+    "build:daemon": "esbuild daemon/src/index.ts --bundle --platform=node --format=esm --target=node20 --outfile=dist/daemon.js",
+    "build:extension": "cd extension && npm run build",
+    "prepack": "npm run build"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0"
   }
 }

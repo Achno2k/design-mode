@@ -23,10 +23,13 @@ you select + comment in the browser
 
 ## Setup
 
+Both halves ship in one npm package: the daemon runs from it, and the built
+extension rides along inside it.
+
 **1. Start the daemon**, in a pane in the herdr session you want reviews sent to:
 
 ```bash
-npx .              # from the repo root
+npx herdr-design-mode
 ```
 
 It listens on `127.0.0.1:8791` and prints a **pairing code**:
@@ -39,19 +42,29 @@ Loopback only — it runs `herdr` commands and must never be reachable from the
 network. The code is generated once and kept at `~/.herdr-design-mode/token`
 (mode `0600`), so it survives restarts.
 
-**2. Build and load the extension:**
+**2. Load the extension.** It is not on the Chrome Web Store, so Chrome loads it
+from disk. Ask the package where it lives:
 
 ```bash
-cd extension
-npm install
-npm run build
+npx herdr-design-mode extension     # prints the folder; add | pbcopy to copy it
 ```
 
 Then open `chrome://extensions`, turn on **Developer mode**, choose **Load
-unpacked**, and pick `extension/dist`.
+unpacked**, and pick that folder. The manifest pins a public key, so the
+extension keeps the same id across reinstalls.
+
+Updates arrive the same way code does in development: `npm update`, and the
+running daemon tells the extension to reload itself.
 
 **3. Pair them.** Open the extension popup and paste the pairing code. Without
 it the daemon answers `401` — see [Why pairing exists](#why-pairing-exists).
+
+### From a clone
+
+```bash
+npm install && npm run build       # builds dist/daemon.js and extension/dist
+npx .                              # start the daemon from the repo root
+```
 
 ## Using it
 

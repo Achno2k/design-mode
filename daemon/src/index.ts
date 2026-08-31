@@ -26,7 +26,8 @@ async function main(): Promise<void> {
 
   log.info('────────────────────────────────────────────────────────────────');
   log.info(`Pairing code: ${token.value}  (paste this into the extension popup)`);
-  log.info('Next: load extension/dist in chrome://extensions and paste this code into the popup.');
+  log.info('Next: run `npx herdr-design-mode extension` for the folder to load in chrome://extensions,');
+  log.info('      then paste this code into the extension popup.');
   log.info('────────────────────────────────────────────────────────────────');
 
   const cleanup = await cleanExpiredPicks();
