@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "herdr design mode",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Select components on a local dev server and send them to the herdr agent working on it.",
   "permissions": [
     "activeTab",

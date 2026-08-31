@@ -1,0 +1,9 @@
+{
+  "name": "herdr-design-mode",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "herdr-design-mode": "bin/herdr-design-mode.mjs"
+  }
+}
