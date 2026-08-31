@@ -1,4 +1,5 @@
 import { context } from 'esbuild';
+import { watch as watchFiles } from 'node:fs';
 import { cp, rm } from 'node:fs/promises';
 
 /**
@@ -16,6 +17,12 @@ const ENTRYPOINTS = [
 ];
 
 const watch = process.argv.includes('--watch');
+let copyQueue = Promise.resolve();
+
+function copyPublic() {
+  copyQueue = copyQueue.catch(() => {}).then(() => cp('public', 'dist', { recursive: true }));
+  return copyQueue;
+}
 
 await rm('dist', { recursive: true, force: true });
 
@@ -30,14 +37,24 @@ const build = await context({
   sourcemap: watch ? 'inline' : false,
   minify: !watch,
   logLevel: 'info',
+  plugins: [
+    {
+      name: 'copy-public',
+      setup(build) {
+        build.onEnd(async (result) => {
+          if (result.errors.length === 0) await copyPublic();
+        });
+      },
+    },
+  ],
 });
 
 await build.rebuild();
-await cp('public', 'dist', { recursive: true });
 
 if (watch) {
   await build.watch();
-  console.log('watching — reload the extension in chrome://extensions after each change');
+  watchFiles('public', { recursive: true }, () => void copyPublic());
+  console.log('watching extension source and public files');
 } else {
   await build.dispose();
 }

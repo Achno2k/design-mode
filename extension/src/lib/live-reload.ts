@@ -5,6 +5,7 @@ const STORAGE_KEY = 'buildRevision';
 
 /** How long to wait before retrying once the daemon has gone away. */
 const RETRY_MS = 4_000;
+const POLL_TIMEOUT_MS = 35_000;
 
 /**
  * Restart the extension whenever its bundle is rebuilt.
@@ -36,33 +37,51 @@ async function loop(): Promise<void> {
     }
 
     if (since !== null && revision !== since) {
-      await chrome.storage.session.set({ [STORAGE_KEY]: revision });
+      await writeLastRevision(revision);
       chrome.runtime.reload();
       return;
     }
 
-    await chrome.storage.session.set({ [STORAGE_KEY]: revision });
+    await writeLastRevision(revision);
     since = revision;
   }
 }
 
 /** The daemon's current build revision, or null when it cannot be reached. */
 async function pollOnce(since: number | null): Promise<number | null> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), POLL_TIMEOUT_MS);
   try {
-    const response = await fetch(`${BASE_URL}/build?since=${since ?? -1}`);
+    const response = await fetch(`${BASE_URL}/build?since=${since ?? -1}`, {
+      signal: controller.signal,
+    });
     if (!response.ok) return null;
 
     const body = (await response.json()) as { revision?: unknown };
     return typeof body.revision === 'number' ? body.revision : null;
   } catch {
     return null;
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
 async function readLastRevision(): Promise<number | null> {
-  const stored = await chrome.storage.session.get(STORAGE_KEY);
-  const value = stored[STORAGE_KEY];
-  return typeof value === 'number' ? value : null;
+  try {
+    const stored = await chrome.storage.session.get(STORAGE_KEY);
+    const value = stored[STORAGE_KEY];
+    return typeof value === 'number' ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+async function writeLastRevision(revision: number): Promise<void> {
+  try {
+    await chrome.storage.session.set({ [STORAGE_KEY]: revision });
+  } catch {
+    // Live reload is a convenience; storage must never terminate its poll loop.
+  }
 }
 
 function delay(ms: number): Promise<void> {

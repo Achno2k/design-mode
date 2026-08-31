@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
+import type { watch } from 'node:fs';
 import { mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -49,6 +51,28 @@ test('collapses the several writes of one build into a single revision', async (
   } finally {
     watcher.stop();
   }
+});
+
+test('releases held long-polls immediately when stopped', async () => {
+  const watcher = watchBuild(await scratch());
+  const started = Date.now();
+  const waiting = watcher.waitForChange(0, 5_000);
+  watcher.stop();
+
+  assert.equal(await waiting, 0);
+  assert.ok(Date.now() - started < 500);
+});
+
+test('handles watcher errors and releases long-polls without stopping the daemon', async () => {
+  const events = new EventEmitter();
+  const fakeWatcher = Object.assign(events, { close() {} });
+  const watchDirectory = (() => fakeWatcher) as unknown as typeof watch;
+  const watcher = watchBuild('/unused', watchDirectory);
+  const waiting = watcher.waitForChange(0, 5_000);
+
+  events.emit('error', new Error('watch failed'));
+  assert.equal(await waiting, 0);
+  assert.equal(watcher.revision(), 0);
 });
 
 test('does not fail when the build output does not exist yet', async () => {
