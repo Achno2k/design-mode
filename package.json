@@ -1,6 +1,6 @@
 {
   "name": "herdr-design-mode",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Select components on a local dev server, comment on them, and send them to the herdr agent working on that project.",
   "license": "MIT",
   "type": "module",

@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <title>herdr design mode</title>
+  <!--
+    Selection brackets around a send arrow: pick something on the page, send it
+    to the agent. Stroke weights are heavy enough to survive the 16px favicon,
+    which is the size that decides every choice here. Colours are the overlay's
+    own tokens, so the icon and the tray look like one product.
+  -->
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#242628"/>
+      <stop offset="1" stop-color="#0e0f10"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="url(#tile)"/>
+  <g fill="none" stroke="#38bdf8" stroke-width="12" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M52 30 H38 a8 8 0 0 0-8 8 V90 a8 8 0 0 0 8 8 h14"/>
+    <path d="M76 30 h14 a8 8 0 0 1 8 8 V90 a8 8 0 0 1-8 8 H76"/>
+  </g>
+  <g fill="none" stroke="#f2f8ff" stroke-width="12" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M52 76 L76 52"/>
+    <path d="M60 52 H76 V68"/>
+  </g>
+</svg>

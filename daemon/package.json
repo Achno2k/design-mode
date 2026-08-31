@@ -1,6 +1,6 @@
 {
   "name": "herdr-design-mode-daemon",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "type": "module",
   "description": "Bridges the browser extension to the herdr agent session that owns a dev server.",
