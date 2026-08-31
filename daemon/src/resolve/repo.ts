@@ -1,16 +1,33 @@
-import { runCommand } from '../lib/command.ts';
+import { runCommandStatus, type CommandStatus } from '../lib/command-status.ts';
+import { err, ok, type Result } from '../result.ts';
 
-/**
- * Find the git repository containing `dir`, or null when there is not one.
- *
- * This bounds how far a match may reach. Without it, an agent parked in a
- * parent directory — a home directory being the worst case — looks like the
- * owner of every project beneath it.
- */
-export async function findRepoRoot(dir: string): Promise<string | null> {
-  const output = await runCommand('git', ['-C', dir, 'rev-parse', '--show-toplevel']);
-  if (!output.ok) return null;
+type RunGit = (binary: string, args: string[]) => Promise<Result<CommandStatus>>;
 
-  const root = output.value.trim();
-  return root === '' ? null : root;
+/** Find the git repository containing `directory`, or null when it is not in one. */
+export async function findRepoRoot(
+  directory: string,
+  runGit: RunGit = runCommandStatus,
+): Promise<Result<string | null>> {
+  const output = await runGit('git', ['-C', directory, 'rev-parse', '--show-toplevel']);
+  if (!output.ok) return output;
+
+  if (output.value.exitCode === 0) {
+    const root = output.value.stdout.trim();
+    return root === ''
+      ? err(`Git did not report the repository containing ${directory}.`)
+      : ok(root);
+  }
+
+  if (isOutsideRepository(output.value)) return ok(null);
+
+  const detail = output.value.stderr.trim();
+  return err(
+    detail === ''
+      ? `Could not inspect the repository containing ${directory}; Git exited with code ${output.value.exitCode}.`
+      : `Could not inspect the repository containing ${directory}: ${detail}`,
+  );
+}
+
+function isOutsideRepository(status: CommandStatus): boolean {
+  return status.exitCode === 128 && /not a git repository/i.test(status.stderr);
 }
