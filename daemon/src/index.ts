@@ -1,36 +1,48 @@
 import { createServer } from 'node:http';
 
+import { readOrCreateToken } from './auth/token.ts';
 import { watchBuild } from './build-watch.ts';
 import { config } from './config.ts';
 import { isInsideHerdr } from './herdr/client.ts';
 import { log } from './logger.ts';
+import { cleanExpiredPicks } from './payload/cleanup.ts';
 import { createRequestListener } from './server/router.ts';
 import { createRoutes } from './server/routes/index.ts';
 
-/**
- * Entry point.
- *
- * The daemon must run inside a herdr pane: the `herdr` CLI talks to the session
- * that owns the calling terminal, so starting it anywhere else would either
- * fail or, worse, drive somebody else's session.
- */
-function main(): void {
+/** Start the loopback daemon inside the calling herdr pane. */
+async function main(): Promise<void> {
   if (!isInsideHerdr()) {
     log.error('Not running inside herdr. Start this from a pane in your herdr session.');
     process.exitCode = 1;
     return;
   }
 
+  const token = await readOrCreateToken();
+  if (!token.ok) {
+    log.error(token.error);
+    process.exitCode = 1;
+    return;
+  }
+
+  log.info('────────────────────────────────────────────────────────────────');
+  log.info(`Pairing code: ${token.value}  (paste this into the extension popup)`);
+  log.info('Next: load extension/dist in chrome://extensions and paste this code into the popup.');
+  log.info('────────────────────────────────────────────────────────────────');
+
+  const cleanup = await cleanExpiredPicks();
+  if (!cleanup.ok) log.warn(cleanup.error);
+
   const builds = watchBuild(config.distDir);
-  const server = createServer(createRequestListener(createRoutes(builds)));
+  const server = createServer(createRequestListener(createRoutes(builds, token.value), token.value));
 
   server.on('error', (cause: NodeJS.ErrnoException) => {
-    if (cause.code === 'EADDRINUSE') {
-      log.error(`Port ${config.port} is already taken — the daemon may already be running.`);
-    } else {
-      log.error(`Server error: ${cause.message}`);
-    }
-    process.exitCode = 1;
+    const message =
+      cause.code === 'EADDRINUSE'
+        ? `Port ${config.port} is already taken — the daemon may already be running.`
+        : `Server error: ${cause.message}`;
+    log.error(message);
+    builds.stop();
+    process.exit(1);
   });
 
   server.listen(config.port, config.host, () => {
@@ -46,4 +58,4 @@ function main(): void {
   }
 }
 
-main();
+void main();

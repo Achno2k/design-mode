@@ -20,6 +20,9 @@ export const config = {
   /** How long a live-reload poll is held open before answering with no change. */
   buildPollMs: 25_000,
 
+  /** Reviews and unclaimed screenshot blobs are removed after this age. */
+  pickTtlMs: 7 * 24 * 60 * 60 * 1_000,
+
   /**
    * Hard ceiling on any external command. Both `lsof` and `herdr` answer in
    * milliseconds, so anything approaching this means the command is wedged and
