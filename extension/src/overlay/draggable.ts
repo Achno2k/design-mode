@@ -10,6 +10,7 @@ export interface Draggable {
   moveTo(position: Point): void;
   /** Return to the position the stylesheet gives it. */
   clear(): void;
+  destroy(): void;
 }
 
 export interface DragOptions {
@@ -108,6 +109,14 @@ export function makeDraggable(
       panel.classList.remove(options.floatingClass, options.draggingClass);
       panel.style.removeProperty('left');
       panel.style.removeProperty('top');
+    },
+
+    destroy() {
+      handle.removeEventListener('pointerdown', onPointerDown);
+      handle.removeEventListener('pointermove', onPointerMove);
+      handle.removeEventListener('pointerup', onPointerUp);
+      handle.removeEventListener('pointercancel', onPointerUp);
+      window.removeEventListener('resize', onResize);
     },
   };
 }

@@ -3,42 +3,67 @@ import {
   applyValue,
   readValue,
   toCssValue,
-  toHex,
-  type EditableProperty,
+  type EditorGroup,
 } from '../inspect/editable.ts';
-import type { StyleChange } from '../lib/protocol.ts';
+import { readTextContent, writeTextContent } from '../inspect/text-content.ts';
+import type { StyleChange, TextChange } from '../lib/protocol.ts';
 import { fill, make } from './dom.ts';
-import { CHEVRON_ICON } from './icons.ts';
+import { createStyleRow, createTextRow, type StyleRow } from './style-rows.ts';
 
-/** Live style editing for one element. */
+/** Live edits for one element, kept reversible after they are committed. */
+export interface CommittedStyleEdits {
+  changes: StyleChange[];
+  /** Present only when the element's copy was rewritten. */
+  textChange?: TextChange;
+  apply(): void;
+  revert(): void;
+}
+
 export interface StyleEditor {
   /** Point the editor at an element and read its current values. */
   attach(element: Element): void;
   /** Undo every live edit and forget the element. */
   reset(): void;
-  /** Keep the edits and report them, for the note sent to the agent. */
-  commit(): StyleChange[];
+  /** True when anything on the element has actually been changed. */
+  hasEdits(): boolean;
+  /** Keep the edits and return a reversible effect. */
+  commit(): CommittedStyleEdits;
   element(): HTMLElement;
 }
 
+export interface StyleEditorOptions {
+  /** Fires on every edit, so the composer can enable or disable its submit. */
+  onChange?: () => void;
+}
+
 /**
- * Edit styles on the page and see the result immediately.
+ * Edit an element on the page and see the result immediately.
  *
- * Edits are written as inline styles, so they are visible at once and vanish on
- * the next reload — this is a way to describe a change precisely, not a way to
- * make one. What the user tried is recorded and sent along with the comment, so
- * the agent gets an exact before and after rather than a vague description.
+ * Style edits are written as inline styles and the copy is written straight
+ * onto the element, so both are visible at once and both vanish on the next
+ * reload — this is a way to describe a change precisely, not a way to make one.
+ * What the user tried is recorded and sent with the comment, so the agent gets
+ * an exact before and after rather than a vague description.
  */
-export function createStyleEditor(): StyleEditor {
-  const rows = EDITABLE_PROPERTIES.map(createRow);
+export function createStyleEditor(options: StyleEditorOptions = {}): StyleEditor {
+  const notifyChange = options.onChange ?? (() => {});
+
+  const textRow = createTextRow();
+  const styleRows = EDITABLE_PROPERTIES.map(createStyleRow);
+
+  const textGroup = fill(make('div', { className: 'editor__group' }), textRow.element);
   const panel = fill(
     make('div', { className: 'editor' }),
-    ...rows.map((row) => row.element),
+    textGroup,
+    ...groupRows(styleRows).map((rows) =>
+      fill(make('div', { className: 'editor__group' }), ...rows.map((row) => row.element)),
+    ),
   );
 
   let target: Element | null = null;
+  let originalText: string | null = null;
   const originalEffective = new Map<string, string>();
-  const originalInline = new Map<string, { value: string; priority: string }>();
+  const originalInline = new Map<string, InlineValue>();
 
   function attach(element: Element): void {
     if (target === element && originalEffective.size > 0) return;
@@ -47,8 +72,14 @@ export function createStyleEditor(): StyleEditor {
     originalEffective.clear();
     originalInline.clear();
 
+    // An element with element children has no single copy to rewrite, so the
+    // row is hidden rather than shown in a state that would destroy its subtree.
+    originalText = readTextContent(element);
+    textGroup.hidden = originalText === null;
+    textRow.setValue(originalText ?? '');
+
     const style = (element as HTMLElement).style;
-    for (const row of rows) {
+    for (const row of styleRows) {
       const property = row.property.property;
       const value = readValue(element, row.property);
       originalEffective.set(property, value);
@@ -63,190 +94,151 @@ export function createStyleEditor(): StyleEditor {
   function reset(): void {
     if (target !== null) {
       const style = (target as HTMLElement).style;
-      for (const row of rows) {
-        const property = row.property.property;
-        const original = originalInline.get(property);
-        if (original === undefined || original.value === '') {
-          style.removeProperty(property);
-        } else if (original.priority === '') {
-          style.setProperty(property, original.value);
-        } else {
-          style.setProperty(property, original.value, original.priority);
-        }
-      }
+      for (const row of styleRows) restoreProperty(style, row.property.property, originalInline);
+      if (originalText !== null) writeTextContent(target, originalText);
     }
-    target = null;
-    originalEffective.clear();
-    originalInline.clear();
+    forget();
   }
 
-  function commit(): StyleChange[] {
-    const changes: StyleChange[] = [];
-
-    for (const row of rows) {
-      const property = row.property.property;
-      const before = originalEffective.get(property) ?? '';
-      const after = row.value();
-      if (before === after) continue;
-
-      changes.push({
-        property,
-        from: toCssValue(row.property, before) || 'unset',
-        to: toCssValue(row.property, after) || 'unset',
-      });
-    }
-
-    target = null;
-    originalEffective.clear();
-    originalInline.clear();
-    return changes;
+  function hasEdits(): boolean {
+    if (target === null) return false;
+    if (changedText(originalText, textRow.value()) !== null) return true;
+    return changedRows(styleRows, originalEffective).length > 0;
   }
 
-  for (const row of rows) {
-    row.onInput((value) => {
-      if (target !== null) applyValue(target, row.property, value);
-    });
-  }
+  function commit(): CommittedStyleEdits {
+    if (target === null) return emptyCommit();
 
-  return { attach, reset, commit, element: () => panel };
-}
+    const element = target as HTMLElement;
+    const changes = changedRows(styleRows, originalEffective);
+    const properties = new Set(changes.map((change) => change.property));
+    const styleBefore = selectInlineValues(originalInline, properties);
+    const styleAfter = readInlineValues(element, properties);
 
-/** One label-and-control line in the panel. */
-interface Row {
-  property: EditableProperty;
-  element: HTMLElement;
-  value(): string;
-  setValue(value: string): void;
-  onInput(handler: (value: string) => void): void;
-}
-
-function createRow(property: EditableProperty): Row {
-  const control = property.kind === 'color' ? colorControl() : plainControl(property);
-  const line = fill(
-    make('div', { className: 'editor__row' }),
-    make('label', { className: 'editor__label', text: property.label }),
-    control.element,
-  );
-
-  // `control` also carries an `element`; the row's line must win over it.
-  return { ...control, property, element: line };
-}
-
-/** A hex swatch beside the real value, so any CSS colour syntax still works. */
-function colorControl() {
-  const swatch = make('input', { className: 'swatch', attributes: { type: 'color' } });
-  const text = make('input', { className: 'field', attributes: { type: 'text' } });
-  const element = fill(make('div', { className: 'control' }), swatch, text);
-
-  let notify: (value: string) => void = () => {};
-
-  swatch.addEventListener('input', () => {
-    text.value = swatch.value;
-    notify(swatch.value);
-  });
-  text.addEventListener('input', () => {
-    swatch.value = toHex(text.value);
-    notify(text.value);
-  });
-
-  return {
-    element,
-    value: () => text.value,
-    setValue(value: string) {
-      text.value = value;
-      swatch.value = toHex(value);
-    },
-    onInput(handler: (value: string) => void) {
-      notify = handler;
-    },
-  };
-}
-
-function plainControl(property: EditableProperty) {
-  if (property.kind === 'choice') {
-    const select = make('select', { className: 'field field--select' });
-    fill(
-      select,
-      make('option', { text: '—', attributes: { value: '' } }),
-      ...(property.choices ?? []).map((choice) => make('option', { text: choice, attributes: { value: choice } })),
-    );
-
-    const element = fill(make('div', { className: 'control control--select' }), select, chevron());
-    let notify: (value: string) => void = () => {};
-    let customOption: HTMLOptionElement | null = null;
-
-    function syncValue(value: string): void {
-      const choices = property.choices ?? [];
-      const knownChoice = value === '' || choices.includes(value);
-
-      if (knownChoice) {
-        if (customOption !== null) {
-          customOption.remove();
-          customOption = null;
-        }
-        select.value = value;
-        return;
+    // Rows nudged and put back on their original value are not edits, so their
+    // inline styles are returned to what the page had before the composer opened.
+    for (const row of styleRows) {
+      if (!properties.has(row.property.property)) {
+        restoreProperty(element.style, row.property.property, originalInline);
       }
-
-      if (customOption === null) {
-        customOption = make('option', { attributes: { value }, text: value });
-        select.insertBefore(customOption, select.children[1] ?? null);
-      } else {
-        customOption.value = value;
-        customOption.textContent = value;
-      }
-
-      select.value = value;
     }
 
-    select.addEventListener('input', () => notify(select.value));
-    select.addEventListener('change', () => notify(select.value));
+    const textChange = changedText(originalText, textRow.value());
+    forget();
 
     return {
-      element,
-      value: () => select.value,
-      setValue(value: string) {
-        syncValue(value);
+      changes,
+      ...(textChange === null ? {} : { textChange }),
+      apply: () => {
+        restoreProperties(element, styleAfter);
+        if (textChange !== null) writeTextContent(element, textChange.to);
       },
-      onInput(handler: (value: string) => void) {
-        notify = handler;
+      revert: () => {
+        restoreProperties(element, styleBefore);
+        if (textChange !== null) writeTextContent(element, textChange.from);
       },
     };
   }
 
-  const input = make('input', {
-    className: 'field',
-    attributes:
-      property.kind === 'number'
-        ? { type: 'number', step: String(property.step ?? 1) }
-        : { type: 'text' },
-  });
-
-  const element = fill(make('div', { className: 'control' }), input);
-  if (property.unit !== undefined) {
-    element.classList.add('control--unit');
-    element.append(make('span', { className: 'control__unit', text: property.unit }));
+  function forget(): void {
+    target = null;
+    originalText = null;
+    originalEffective.clear();
+    originalInline.clear();
   }
 
-  let notify: (value: string) => void = () => {};
-  input.addEventListener('input', () => notify(input.value));
-  input.addEventListener('change', () => notify(input.value));
+  textRow.onInput((value) => {
+    if (target !== null) writeTextContent(target, value);
+    notifyChange();
+  });
 
-  return {
-    element,
-    value: () => input.value,
-    setValue(value: string) {
-      input.value = value;
-    },
-    onInput(handler: (value: string) => void) {
-      notify = handler;
-    },
-  };
+  for (const row of styleRows) {
+    row.onInput((value) => {
+      if (target !== null) applyValue(target, row.property, value);
+      notifyChange();
+    });
+  }
+
+  return { attach, reset, hasEdits, commit, element: () => panel };
 }
 
-/** The dropdown arrow, drawn beside the value the way the design shows it. */
-function chevron(): HTMLElement {
-  const element = make('span', { className: 'control__chevron' });
-  element.innerHTML = CHEVRON_ICON;
-  return element;
+/** Keep the declared order, but break it into the bands the design separates. */
+function groupRows(rows: StyleRow[]): StyleRow[][] {
+  const bands: StyleRow[][] = [];
+  let current: EditorGroup | null = null;
+
+  for (const row of rows) {
+    if (row.property.group !== current) {
+      current = row.property.group;
+      bands.push([]);
+    }
+    bands[bands.length - 1]?.push(row);
+  }
+  return bands;
+}
+
+function emptyCommit(): CommittedStyleEdits {
+  return { changes: [], apply: () => {}, revert: () => {} };
+}
+
+/** Null when the copy was left alone, so an untouched row never becomes an edit. */
+function changedText(before: string | null, after: string): TextChange | null {
+  if (before === null || before === after) return null;
+  return { from: before, to: after };
+}
+
+function changedRows(rows: StyleRow[], originalEffective: Map<string, string>): StyleChange[] {
+  return rows.flatMap((row) => {
+    const property = row.property.property;
+    const before = originalEffective.get(property) ?? '';
+    const after = row.value();
+    return before === after
+      ? []
+      : [
+          {
+            property,
+            from: toCssValue(row.property, before) || 'unset',
+            to: toCssValue(row.property, after) || 'unset',
+          },
+        ];
+  });
+}
+
+type InlineValue = { value: string; priority: string };
+
+function selectInlineValues(
+  values: Map<string, InlineValue>,
+  properties: Set<string>,
+): Map<string, InlineValue> {
+  return new Map(Array.from(values).filter(([property]) => properties.has(property)));
+}
+
+function readInlineValues(element: HTMLElement, properties: Set<string>): Map<string, InlineValue> {
+  return new Map(
+    Array.from(properties, (property) => [
+      property,
+      {
+        value: element.style.getPropertyValue(property),
+        priority: element.style.getPropertyPriority(property),
+      },
+    ]),
+  );
+}
+
+function restoreProperties(element: HTMLElement, values: Map<string, InlineValue>): void {
+  for (const [property, value] of values) setInlineValue(element.style, property, value);
+}
+
+function restoreProperty(
+  style: CSSStyleDeclaration,
+  property: string,
+  values: Map<string, InlineValue>,
+): void {
+  const value = values.get(property);
+  if (value !== undefined) setInlineValue(style, property, value);
+}
+
+function setInlineValue(style: CSSStyleDeclaration, property: string, value: InlineValue): void {
+  if (value.value === '') style.removeProperty(property);
+  else style.setProperty(property, value.value, value.priority);
 }

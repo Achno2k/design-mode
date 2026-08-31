@@ -7,12 +7,14 @@ export interface StoredPosition {
 }
 
 /**
- * Remember where the toolbar was left.
+ * Remember where the toolbar was left, for as long as the session lasts.
  *
  * Kept in extension storage rather than the page's, both because the page must
- * not be written to and because the position should follow the user from one
- * localhost app to the next. Storage failures are silent: an overlay that opens
- * in the default place is a far smaller problem than one that refuses to open.
+ * not be written to and because a session survives full-page navigations that
+ * replace the content script. It is dropped when the session ends, so every
+ * session opens docked at the bottom. Storage failures are silent: an overlay
+ * that opens in the default place is a far smaller problem than one that
+ * refuses to open.
  */
 const KEY = 'trayPosition';
 
@@ -31,6 +33,12 @@ export async function readPanelPosition(): Promise<StoredPosition | null> {
 export function writePanelPosition(position: StoredPosition): void {
   if (!isContextAlive()) return;
   void chrome.storage.local.set({ [KEY]: position }).catch(() => {});
+}
+
+/** Forget the parked place, so the next session opens docked at the bottom. */
+export function clearPanelPosition(): void {
+  if (!isContextAlive()) return;
+  void chrome.storage.local.remove(KEY).catch(() => {});
 }
 
 function isPosition(value: unknown): value is StoredPosition {

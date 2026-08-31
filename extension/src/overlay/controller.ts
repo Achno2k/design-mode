@@ -1,19 +1,21 @@
 import { askBackground, isContextAlive, type ReviewSession } from '../lib/messaging.ts';
-import type { Selection, SelectionBox, Target } from '../lib/protocol.ts';
+import type { Selection } from '../lib/protocol.ts';
+import { describeElement, describeHover, describeParts, measure, readSource } from './collect.ts';
 import {
-  captureElement,
-  describeElement,
-  describeForHuman,
-  describeParts,
-  measure,
-  readSource,
-} from './collect.ts';
+  captureNotice,
+  captureWithoutOverlay,
+  includeCaptureReason,
+  resolveCapture,
+} from './capture-result.ts';
+import { describeAdded, isAnnotateShortcut, lowerFirst, pageElementAt } from './controller-input.ts';
 import { createComposer, type Draft } from './composer.ts';
 import { createDrawing } from './drawing.ts';
 import { createHighlight } from './highlight.ts';
 import { createReviewSessionState, type ReviewSessionState } from './review-session.ts';
 import { createRouteWatcher } from './route-watcher.ts';
-import { toAnnotationItem, toDrawingSelection } from './selection-shapes.ts';
+import { toAnnotationItem, toDrawingSelection, toElementSelection } from './selection-shapes.ts';
+import { createStyleEffects } from './style-effects.ts';
+import { confirmTargetReady } from './target-readiness.ts';
 import { createTargetWatcher } from './target-watcher.ts';
 import { createTray } from './tray.ts';
 
@@ -25,6 +27,8 @@ export interface Controller {
   resume(session: ReviewSession): Promise<void>;
   /** Close the session and discard anything not yet sent. */
   stop(): void;
+  /** Tear down listeners without discarding the persisted review. */
+  destroy(): void;
   isOpen(): boolean;
   isPicking(): boolean;
   selectionCount(): number;
@@ -39,18 +43,20 @@ export interface Controller {
  * completed selections remain available to send.
  */
 export function createController(layer: HTMLElement, host: Element): Controller {
-  const highlight = createHighlight(layer);
+  const highlight = createHighlight(layer, host);
   // Reads the toolbar's footprint lazily: it can be dragged, so where it is
   // now says nothing about where it will be when a composer next opens.
   const composer = createComposer(layer, { reservedBottom: () => tray.reservedBottom() });
   const selections: Selection[] = [];
+  const styleEffects = createStyleEffects();
   let open = false;
   let picking = false;
   let confirmedWorkingPaneId: string | null = null;
   let sending = false;
   let composingDrawing = false;
   let drawingGeneration = 0;
-
+  let captureGeneration = 0;
+  let targetRequestGeneration = 0;
   let reviewSession: ReviewSessionState;
   const tray = createTray(layer, {
     onSend: send,
@@ -74,14 +80,15 @@ export function createController(layer: HTMLElement, host: Element): Controller 
     onModeChange: (active) => tray.setDrawing(active),
     onCancelRequested: finishDrawing,
   });
-  const targetWatcher = createTargetWatcher(
-    () => window.location.href,
-    (targets, message) => tray.setTargets(targets, message),
+  const targetWatcher = createTargetWatcher(() => window.location.href, (targets, message) =>
+    tray.setTargets(targets, message),
   );
   const routeWatcher = createRouteWatcher((url) => tray.setPageNote(reviewSession.pageNote(url)));
 
   async function start(): Promise<void> {
     if (open) return;
+    // A new session starts docked; where the bar was dragged belonged to the last one.
+    tray.dock();
     openSession(true);
     reviewSession.save(picking);
     await loadTargets();
@@ -108,19 +115,33 @@ export function createController(layer: HTMLElement, host: Element): Controller 
   function stop(): void {
     if (!open) return;
 
-    setPicking(false);
-    cancelDrawingDraft();
-    targetWatcher.stop();
-    routeWatcher.stop();
-    window.removeEventListener('keydown', onKeyDown, true);
-
+    releasePage();
     open = false;
     reviewSession.end();
+    styleEffects.clear();
     selections.length = 0;
     confirmedWorkingPaneId = null;
     showSelections();
     tray.clearPageNote();
     tray.hide();
+  }
+
+  function destroy(): void {
+    releasePage();
+    styleEffects.clear();
+    open = false;
+    drawing.destroy();
+    tray.destroy();
+  }
+
+  /** Hand the page back: stop intercepting it and abandon work in flight. */
+  function releasePage(): void {
+    captureGeneration += 1;
+    setPicking(false);
+    cancelDrawingDraft();
+    targetWatcher.stop();
+    routeWatcher.stop();
+    window.removeEventListener('keydown', onKeyDown, true);
   }
 
   /**
@@ -206,11 +227,13 @@ export function createController(layer: HTMLElement, host: Element): Controller 
       return false;
     }
 
+    const generation = ++targetRequestGeneration;
     tray.setStatus(status, 'busy');
     tray.setRefreshing(true);
 
     try {
       const answer = await askBackground({ kind: 'get-targets', url: window.location.href });
+      if (generation !== targetRequestGeneration) return false;
       if (!answer.ok) {
         // The request may have started while this content-script context was
         // alive. If it died in flight, release every page-intercepting mode.
@@ -225,23 +248,23 @@ export function createController(layer: HTMLElement, host: Element): Controller 
       tray.setTargets(answer.value.candidates, answer.value.message);
       return true;
     } finally {
-      tray.setRefreshing(false);
+      if (generation === targetRequestGeneration) tray.setRefreshing(false);
     }
   }
 
   function onPointerMove(event: PointerEvent): void {
     if (composer.isOpen()) return;
 
-    const element = pageElementAt(event);
+    const element = pageElementAt(event, host);
     if (element === null) {
       highlight.hide();
       return;
     }
-    highlight.show(element.getBoundingClientRect(), describeForHuman(describeElement(element)));
+    highlight.show(element, describeHover(element));
   }
 
   function onClick(event: MouseEvent): void {
-    const element = pageElementAt(event);
+    const element = pageElementAt(event, host);
     if (element === null) return;
 
     // The page must not act on this click — it was aimed at design mode.
@@ -253,10 +276,11 @@ export function createController(layer: HTMLElement, host: Element): Controller 
       return;
     }
 
-    highlight.hide();
-    composer.open(element, describeParts(describeElement(element)), (draft) => {
-      void addSelection(element, draft);
-    });
+    // Stays outlined while its comment is written, but with no child boxes.
+    highlight.pin(element, describeHover(element));
+    const parts = describeParts(describeElement(element));
+    const dismiss = (): void => highlight.hide();
+    composer.open(element, parts, (draft) => void addSelection(element, draft), dismiss);
   }
 
   /**
@@ -285,29 +309,37 @@ export function createController(layer: HTMLElement, host: Element): Controller 
   }
 
   async function addSelection(element: Element, draft: Draft): Promise<void> {
+    highlight.hide();
+    const generation = captureGeneration;
     tray.setStatus('Reading the component…', 'busy');
 
     const source = await readSource(element);
     // Re-measure in case the page moved while source information was loading.
-    const shot = await captureWithoutChrome(measure(element));
+    const capture = resolveCapture(await captureWithoutOverlay(layer, measure(element)));
+    if (generation !== captureGeneration) {
+      draft.styleEffect?.revert();
+      return;
+    }
 
     confirmedWorkingPaneId = null;
-    selections.push({
-      ...describeElement(element),
-      comment: draft.comment,
-      pageUrl: window.location.href,
-      styleChanges: draft.styleChanges.length > 0 ? draft.styleChanges : undefined,
+    const selection: Selection = toElementSelection(
+      describeElement(element),
+      draft,
+      includeCaptureReason(draft.comment, capture),
+      window.location.href,
       source,
-      screenshot: shot.ok && shot.value !== null ? shot.value : undefined,
-    });
+      capture,
+    );
+    selections.push(selection);
+    styleEffects.add(selection, draft.styleEffect);
     showSelections();
     reviewSession.save(picking);
 
-    if (!shot.ok) {
-      tray.setStatus(`Added, but ${lowerFirst(shot.error)}`, 'busy');
-      return;
-    }
-    tray.setStatus(describeAdded(draft, source !== undefined), 'idle');
+    const notice = captureNotice(capture);
+    tray.setStatus(
+      notice === undefined ? describeAdded(draft, source !== undefined) : `Added, but ${lowerFirst(notice)}`,
+      notice === undefined ? 'idle' : 'busy',
+    );
   }
 
   async function addDrawing(draft: Draft): Promise<void> {
@@ -320,7 +352,7 @@ export function createController(layer: HTMLElement, host: Element): Controller 
     const generation = drawingGeneration;
     composingDrawing = false;
     tray.setStatus('Capturing the drawing…', 'busy');
-    const shot = await captureWithoutChrome(pending.box);
+    const capture = resolveCapture(await captureWithoutOverlay(layer, pending.box));
     // Clear, Exit, switching modes, or starting another drawing invalidates
     // this continuation. It must not commit old ink or clear newer ink.
     if (generation !== drawingGeneration) return;
@@ -328,30 +360,23 @@ export function createController(layer: HTMLElement, host: Element): Controller 
 
     confirmedWorkingPaneId = null;
     selections.push({
-      ...toDrawingSelection(committed, draft.comment, shot.ok ? shot.value : null),
+      ...toDrawingSelection(committed, includeCaptureReason(draft.comment, capture), capture),
       pageUrl: window.location.href,
     });
     showSelections();
     reviewSession.save(picking);
 
-    if (!shot.ok) {
-      tray.setStatus(`Added drawing, but ${lowerFirst(shot.error)}`, 'busy');
-      return;
-    }
-    tray.setStatus('Drawing added.', 'idle');
-  }
-
-  async function captureWithoutChrome(box: SelectionBox) {
-    layer.classList.add('layer--capturing');
-    try {
-      return await captureElement(box);
-    } finally {
-      layer.classList.remove('layer--capturing');
-    }
+    const notice = captureNotice(capture);
+    tray.setStatus(
+      notice === undefined ? 'Drawing added.' : `Added drawing, but ${lowerFirst(notice)}`,
+      notice === undefined ? 'idle' : 'busy',
+    );
   }
 
   function clearAll(): void {
+    captureGeneration += 1;
     cancelDrawingDraft();
+    styleEffects.clear();
     reviewSession.clearContent(picking);
     confirmedWorkingPaneId = null;
     showSelections();
@@ -363,6 +388,9 @@ export function createController(layer: HTMLElement, host: Element): Controller 
   function removeSelection(index: number): void {
     if (index < 0 || index >= selections.length) return;
 
+    const selection = selections[index];
+    if (selection === undefined) return;
+    styleEffects.remove(selection);
     selections.splice(index, 1);
     confirmedWorkingPaneId = null;
     showSelections();
@@ -391,7 +419,16 @@ export function createController(layer: HTMLElement, host: Element): Controller 
         tray.setStatus('That target is no longer available — choose another.', 'error');
         return;
       }
-      if (!confirmTargetReady(target)) return;
+      if (
+        !confirmTargetReady(
+          target,
+          confirmedWorkingPaneId,
+          (paneId) => (confirmedWorkingPaneId = paneId),
+          (message, tone) => tray.setStatus(message, tone),
+        )
+      ) {
+        return;
+      }
 
       if (!hasSendableContent()) {
         tray.setStatus('Nothing to send.', 'idle');
@@ -426,50 +463,6 @@ export function createController(layer: HTMLElement, host: Element): Controller 
     return selections.length > 0 || reviewSession.pageNotes().length > 0;
   }
 
-  function confirmTargetReady(target: Target): boolean {
-    if (target.status === 'blocked') {
-      confirmedWorkingPaneId = null;
-      tray.setStatus('Cannot send: that target is blocked.', 'error');
-      return false;
-    }
-
-    if (target.status === 'working' && confirmedWorkingPaneId !== target.paneId) {
-      confirmedWorkingPaneId = target.paneId;
-      tray.setStatus('Agent is busy · Send again to queue', 'busy');
-      return false;
-    }
-
-    if (target.status !== 'working') confirmedWorkingPaneId = null;
-    return true;
-  }
-
-  /** Tell the user what was captured, since live edits are easy to miss. */
-  function describeAdded(draft: Draft, hasSource: boolean): string {
-    const edits = draft.styleChanges.length;
-    const parts = [edits === 0 ? 'Added' : `Added with ${edits} live edit${edits === 1 ? '' : 's'}`];
-    if (!hasSource) parts.push('no source location in this build');
-    return `${parts.join(' — ')}.`;
-  }
-
-  function lowerFirst(text: string): string {
-    return text.charAt(0).toLowerCase() + text.slice(1);
-  }
-
-  /**
-   * The element under the pointer, ignoring the overlay itself.
-   *
-   * Events that originate inside the shadow root are the user operating the
-   * tray or composer, not picking something on the page.
-   */
-  function pageElementAt(event: MouseEvent): Element | null {
-    if (event.composedPath().includes(host)) return null;
-
-    const element = document.elementFromPoint(event.clientX, event.clientY);
-    return element === null || element === host || element === document.documentElement
-      ? null
-      : element;
-  }
-
   const pickingListeners: [keyof WindowEventMap, (event: never) => void][] = [
     ['pointermove', onPointerMove],
     ['click', onClick],
@@ -479,13 +472,9 @@ export function createController(layer: HTMLElement, host: Element): Controller 
     start,
     resume,
     stop,
+    destroy,
     isOpen: () => open,
     isPicking: () => picking,
     selectionCount: () => selections.length,
   };
-}
-
-/** Command-period on macOS, control-period elsewhere. */
-function isAnnotateShortcut(event: KeyboardEvent): boolean {
-  return event.key === '.' && (event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey;
 }

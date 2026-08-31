@@ -46,7 +46,7 @@ export function createReviewSessionState(
   async function write(picking: boolean): Promise<void> {
     const answer = await askBackground({
       kind: 'save-review-session',
-      session: { open: true, picking, selections, pageNotes: notes },
+      session: { open: true, picking, selections: selections.map(withoutInlineImage), pageNotes: notes },
     });
     if (!answer.ok && !hasReportedError) {
       hasReportedError = true;
@@ -81,4 +81,14 @@ export function createReviewSessionState(
   }
 
   return { restore, save, setPageNote, pageNote, pageNotes, clearContent, end };
+}
+
+/** Inline fallback images must never consume Chrome's small session-storage quota. */
+function withoutInlineImage(selection: Selection): Selection {
+  if (selection.kind === 'element') {
+    const { screenshot: _screenshot, ...durable } = selection;
+    return durable;
+  }
+  const { screenshot: _screenshot, ...durable } = selection;
+  return durable;
 }

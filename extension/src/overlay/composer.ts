@@ -1,12 +1,14 @@
-import type { SelectionBox, StyleChange } from '../lib/protocol.ts';
+import type { SelectionBox, StyleChange, TextChange } from '../lib/protocol.ts';
 import { fill, make, placeNear } from './dom.ts';
-import { CHECK_ICON, CLOSE_ICON, SLIDERS_ICON } from './icons.ts';
-import { createStyleEditor } from './style-editor.ts';
+import { CHECK_ICON, SLIDERS_ICON } from './icons.ts';
+import { createStyleEditor, type CommittedStyleEdits } from './style-editor.ts';
 
 /** What the user produced for one element. */
 export interface Draft {
   comment: string;
   styleChanges: StyleChange[];
+  textChange?: TextChange;
+  styleEffect?: CommittedStyleEdits;
 }
 
 /** What the composer is pointed at, split so the tag can be coloured apart. */
@@ -19,7 +21,12 @@ export interface ElementLabel {
 
 /** The panel that opens on the element you clicked. */
 export interface Composer {
-  open(element: Element, label: ElementLabel, onSubmit: (draft: Draft) => void): void;
+  open(
+    element: Element,
+    label: ElementLabel,
+    onSubmit: (draft: Draft) => void,
+    onDismiss: () => void,
+  ): void;
   /** Open a comment-only composer beside a freehand drawing. */
   openAt(
     box: SelectionBox,
@@ -39,39 +46,40 @@ export interface ComposerOptions {
 /**
  * Ask for a comment, and optionally let the user show what they mean.
  *
- * It opens as a single input. The sliders button expands a style editor whose
- * changes apply to the page immediately, so a change can be demonstrated rather
- * than described. Closing without submitting reverts every live edit.
+ * It opens as a single prompt with the element named beneath it. The sliders
+ * button expands the editor, whose changes apply to the page immediately, so a
+ * change can be demonstrated rather than described. Closing without submitting
+ * reverts every live edit.
  */
 export function createComposer(layer: HTMLElement, options: ComposerOptions): Composer {
-  const editor = createStyleEditor();
-
-  const tag = make('span', { className: 'composer__tag' });
-  const detail = make('span', { className: 'composer__detail' });
-  const label = fill(make('div', { className: 'composer__label' }), tag, detail);
+  const editor = createStyleEditor({ onChange: () => updateSubmit() });
 
   const input = make('textarea', {
     className: 'composer__input',
-    attributes: { rows: '1', placeholder: 'Describe the change…' },
+    attributes: { rows: '1', placeholder: 'Describe these changes…' },
   });
 
-  const expand = iconButton('circle', SLIDERS_ICON, 'Edit styles live');
+  const expand = iconButton('circle circle--ghost', SLIDERS_ICON, 'Edit this element live');
   const submit = iconButton('circle circle--accent', CHECK_ICON, 'Add selection');
-  const dismiss = iconButton('circle circle--sm', CLOSE_ICON, 'Cancel');
+  const cancel = make('button', {
+    className: 'pill pill--outline',
+    text: 'Cancel',
+    attributes: { type: 'button' },
+  });
+
+  const tag = make('span', { className: 'composer__tag' });
+  const detail = make('span', { className: 'composer__detail' });
+  const identity = fill(make('div', { className: 'composer__identity' }), tag, detail);
 
   const editorPanel = editor.element();
   editorPanel.hidden = true;
 
   const panel = fill(
     make('div', { className: 'panel composer', attributes: { hidden: '' } }),
-    label,
-    fill(
-      make('div', { className: 'composer__bar' }),
-      expand,
-      fill(make('div', { className: 'composer__field' }), input, dismiss),
-      submit,
-    ),
+    fill(make('div', { className: 'composer__prompt' }), expand, input),
+    identity,
     editorPanel,
+    fill(make('div', { className: 'composer__footer' }), cancel, submit),
   );
   layer.append(panel);
 
@@ -88,20 +96,38 @@ export function createComposer(layer: HTMLElement, options: ComposerOptions): Co
     dismissed?.();
   }
 
+  /**
+   * The submit is disabled rather than silently refusing: a selection with
+   * neither a comment nor an edit says nothing, and the button should show that
+   * before it is pressed instead of after.
+   */
+  function updateSubmit(): void {
+    submit.disabled = input.value.trim() === '' && !editor.hasEdits();
+  }
+
   function commit(): void {
     const comment = input.value.trim();
-    const styleChanges = target === null ? [] : editor.commit();
+    const committed = target === null ? null : editor.commit();
+    const styleChanges = committed?.changes ?? [];
+    const textChange = committed?.textChange;
 
-    // A selection with neither a comment nor an edit says nothing.
-    if (comment === '' && styleChanges.length === 0) {
+    if (comment === '' && styleChanges.length === 0 && textChange === undefined) {
+      committed?.revert();
+      if (target !== null && editorAttached) editor.attach(target);
       input.focus();
       return;
     }
 
     const handler = onSubmit;
+    const hasEdits = styleChanges.length > 0 || textChange !== undefined;
     // Cleared without reverting, so the live edits stay on screen after adding.
     resetPanel();
-    handler?.({ comment, styleChanges });
+    handler?.({
+      comment,
+      styleChanges,
+      ...(textChange === undefined ? {} : { textChange }),
+      ...(committed === null || !hasEdits ? {} : { styleEffect: committed }),
+    });
   }
 
   function resetPanel(): void {
@@ -116,6 +142,7 @@ export function createComposer(layer: HTMLElement, options: ComposerOptions): Co
     editorAttached = false;
     onSubmit = null;
     onDismiss = null;
+    updateSubmit();
   }
 
   function showLabel(next: ElementLabel): void {
@@ -157,8 +184,9 @@ export function createComposer(layer: HTMLElement, options: ComposerOptions): Co
 
   expand.addEventListener('click', toggleEditor);
   submit.addEventListener('click', commit);
-  dismiss.addEventListener('click', close);
+  cancel.addEventListener('click', close);
   input.addEventListener('input', () => {
+    updateSubmit();
     resize();
     reposition();
   });
@@ -184,20 +212,30 @@ export function createComposer(layer: HTMLElement, options: ComposerOptions): Co
   input.addEventListener('keypress', suppressHostKeyEvent);
   input.addEventListener('keyup', suppressHostKeyEvent);
 
+  // Editor fields are ordinary inputs; their keystrokes must not reach the page
+  // either, or typing a space into a value would scroll it.
+  for (const type of ['keydown', 'keypress', 'keyup'] as const) {
+    editorPanel.addEventListener(type, suppressHostKeyEvent);
+  }
+
+  function openPanel(next: ElementLabel): void {
+    showLabel(next);
+    panel.removeAttribute('hidden');
+    resize();
+    updateSubmit();
+    reposition();
+    input.focus();
+  }
+
   return {
-    open(element, next, handler) {
+    open(element, next, handler, dismissed) {
       anchor = element;
       target = element;
       editorAttached = false;
       onSubmit = handler;
-      onDismiss = null;
+      onDismiss = dismissed;
       expand.hidden = false;
-      showLabel(next);
-      panel.removeAttribute('hidden');
-      resize();
-
-      reposition();
-      input.focus();
+      openPanel(next);
     },
     openAt(box, next, handler, dismissed) {
       editor.reset();
@@ -208,12 +246,7 @@ export function createComposer(layer: HTMLElement, options: ComposerOptions): Co
       onDismiss = dismissed;
       expand.hidden = true;
       editorPanel.hidden = true;
-      showLabel(next);
-      panel.removeAttribute('hidden');
-      resize();
-
-      reposition();
-      input.focus();
+      openPanel(next);
     },
     close,
     isOpen: () => !panel.hasAttribute('hidden'),

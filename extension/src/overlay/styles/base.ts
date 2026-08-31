@@ -37,9 +37,33 @@ export const BASE_CSS = `
   pointer-events: none;
 }
 
+/* ---------- child component outlines ---------- */
+
+/*
+ * One faint box per child component of whatever is hovered, so the shape of the
+ * component tree is readable at a glance. Deliberately quiet: the pointer's own
+ * blue box stays the thing being pointed at, and these only hint at what sits
+ * inside it. Siblings differ by hue alone, never by weight.
+ */
+.child {
+  position: fixed;
+  border: 1px solid var(--tree-line);
+  background: var(--tree-fill);
+  border-radius: var(--radius-control);
+  pointer-events: none;
+}
+
+.child--1 { --tree-line: rgba(255, 138, 128, 0.55); --tree-fill: rgba(255, 138, 128, 0.07); }
+.child--2 { --tree-line: rgba(126, 231, 135, 0.55); --tree-fill: rgba(126, 231, 135, 0.07); }
+.child--3 { --tree-line: rgba(245, 194, 107, 0.55); --tree-fill: rgba(245, 194, 107, 0.07); }
+.child--4 { --tree-line: rgba(201, 167, 255, 0.55); --tree-fill: rgba(201, 167, 255, 0.07); }
+.child--5 { --tree-line: rgba(126, 231, 231, 0.55); --tree-fill: rgba(126, 231, 231, 0.07); }
+.child--6 { --tree-line: rgba(255, 158, 205, 0.55); --tree-fill: rgba(255, 158, 205, 0.07); }
+
 /* Screenshots keep freehand SVG ink while removing every piece of overlay chrome. */
 .layer--capturing .panel,
 .layer--capturing .highlight,
+.layer--capturing .child,
 .layer--capturing .chip { visibility: hidden; }
 
 /* ---------- shared surface ---------- */

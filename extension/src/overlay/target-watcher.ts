@@ -1,3 +1,4 @@
+import { NOT_PAIRED } from '../lib/daemon.ts';
 import { askBackground, isContextAlive } from '../lib/messaging.ts';
 import type { Target } from '../lib/protocol.ts';
 
@@ -40,7 +41,11 @@ export function createTargetWatcher(
     const requestVersion = stateVersion;
     try {
       const answer = await askBackground({ kind: 'get-targets', url: pageUrl() });
-      if (!active || !answer.ok || requestVersion !== stateVersion) return;
+      if (!active || requestVersion !== stateVersion) return;
+      if (!answer.ok) {
+        if (answer.error === NOT_PAIRED) onChange([], answer.error);
+        return;
+      }
 
       const nextRevision = targetsRevision(answer.value.candidates, answer.value.message);
       if (nextRevision === revision) return;

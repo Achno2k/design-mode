@@ -1,4 +1,4 @@
-import { askBackground, type Answer } from '../lib/messaging.ts';
+import { askBackground, type Answer, type CapturedScreenshot } from '../lib/messaging.ts';
 import type { ElementContext, ElementSelection, SelectionBox, SelectionSource } from '../lib/protocol.ts';
 import { SOURCE_MARKER } from '../inspect/marker.ts';
 import { buildSelector, stableClasses } from '../inspect/selector.ts';
@@ -52,8 +52,18 @@ export async function readSource(element: Element): Promise<SelectionSource | un
  * so the tray can say so — an image that quietly never arrives is worse than
  * one that is reported missing.
  */
-export async function captureElement(box: SelectionBox): Promise<Answer<string | null>> {
-  return askBackground({ kind: 'capture', box, pixelRatio: window.devicePixelRatio });
+export async function captureElement(box: SelectionBox): Promise<Answer<CapturedScreenshot>> {
+  return askBackground({
+    kind: 'capture',
+    request: {
+      box,
+      pixelRatio: window.devicePixelRatio,
+      scrollX: window.scrollX,
+      scrollY: window.scrollY,
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+    },
+  });
 }
 
 /** Tag and classes kept apart, so the composer can colour the tag differently. */
@@ -64,10 +74,15 @@ export function describeParts(facts: ElementFacts): { tag: string; detail: strin
   };
 }
 
-/** Short label for the hover chip, so the user can see what they are over. */
-export function describeForHuman(facts: ElementFacts): string {
-  const { tag, detail } = describeParts(facts);
-  return `${tag}${detail}`;
+/** Cheap hover label: no selector, computed-style, or accessibility work. */
+export function describeHover(element: Element): string {
+  const tag = `<${element.tagName.toLowerCase()}>`;
+  const classes = Array.from(element.classList)
+    .filter((name) => name !== '')
+    .slice(0, 2)
+    .map((name) => `.${name}`)
+    .join('');
+  return `${tag}${classes}`;
 }
 
 const USEFUL_ATTRIBUTES = ['href', 'name', 'placeholder', 'type', 'alt'] as const;

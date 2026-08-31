@@ -1,4 +1,8 @@
-import { readPanelPosition, writePanelPosition } from '../lib/panel-position.ts';
+import {
+  clearPanelPosition,
+  readPanelPosition,
+  writePanelPosition,
+} from '../lib/panel-position.ts';
 import type { Target } from '../lib/protocol.ts';
 import { createAgentPicker } from './agent-picker.ts';
 import { createAnnotationStack, type AnnotationItem } from './annotations.ts';
@@ -27,8 +31,11 @@ export interface Tray {
   pageNote(): string;
   setPageNote(value: string): void;
   clearPageNote(): void;
+  /** Send the bar back to its docked place and forget where it was dragged. */
+  dock(): void;
   show(): void;
   hide(): void;
+  destroy(): void;
 }
 
 export interface TrayHandlers {
@@ -142,9 +149,11 @@ export function createTray(layer: HTMLElement, handlers: TrayHandlers): Tray {
   });
 
   // Restoring is best-effort and asynchronous, so the bar appears docked and
-  // moves to where it was left once storage answers.
+  // moves to where it was left once storage answers. A session that starts in
+  // the meantime docks the bar, and its answer must not undo that.
+  let docked = false;
   void readPanelPosition().then((position) => {
-    if (position !== null) drag.moveTo(position);
+    if (position !== null && !docked) drag.moveTo(position);
     placeStack();
   });
 
@@ -296,6 +305,12 @@ export function createTray(layer: HTMLElement, handlers: TrayHandlers): Tray {
       note.value = '';
       updateSendDisabled();
     },
+    dock() {
+      docked = true;
+      drag.clear();
+      clearPanelPosition();
+      placeStack();
+    },
     show: () => {
       panel.removeAttribute('hidden');
       placeStack();
@@ -304,6 +319,11 @@ export function createTray(layer: HTMLElement, handlers: TrayHandlers): Tray {
       picker.close();
       closeQueue();
       panel.setAttribute('hidden', '');
+    },
+    destroy: () => {
+      picker.close();
+      closeQueue();
+      drag.destroy();
     },
   };
 }

@@ -1,5 +1,12 @@
-import type { DrawingSelection, Selection } from '../lib/protocol.ts';
+import type { CapturedScreenshot } from '../lib/messaging.ts';
+import type {
+  DrawingSelection,
+  ElementSelection,
+  Selection,
+  SelectionSource,
+} from '../lib/protocol.ts';
 import type { AnnotationItem } from './annotations.ts';
+import type { Draft } from './composer.ts';
 import type { DrawingSnapshot } from './drawing.ts';
 
 /**
@@ -10,11 +17,46 @@ import type { DrawingSnapshot } from './drawing.ts';
  * both conversions here means a field can only ever be renamed in one place.
  */
 
+/** Everything the overlay learned about the element it is turning into a selection. */
+export interface ElementFacts {
+  tag: string;
+  selector: string;
+  classes: string[];
+  text: string;
+  box: ElementSelection['box'];
+  styles: Record<string, string>;
+  context?: ElementSelection['context'];
+}
+
+/** A commented element, in the protocol's shape. */
+export function toElementSelection(
+  facts: ElementFacts,
+  draft: Draft,
+  comment: string,
+  pageUrl: string,
+  source: SelectionSource | undefined,
+  capture: CapturedScreenshot,
+): ElementSelection {
+  return {
+    kind: 'element',
+    ...facts,
+    comment,
+    pageUrl,
+    ...(draft.styleChanges.length === 0 ? {} : { styleChanges: draft.styleChanges }),
+    ...(draft.textChange === undefined ? {} : { textChange: draft.textChange }),
+    ...(source === undefined ? {} : { source }),
+    ...(capture.screenshot === undefined ? {} : { screenshot: capture.screenshot }),
+    ...(capture.screenshotBlobId === undefined
+      ? {}
+      : { screenshotBlobId: capture.screenshotBlobId }),
+  };
+}
+
 /** A finished drawing, in the protocol's shape, with points relative to its box. */
 export function toDrawingSelection(
   snapshot: DrawingSnapshot,
   comment: string,
-  screenshot: string | null,
+  capture: CapturedScreenshot,
 ): DrawingSelection {
   const { box } = snapshot;
   return {
@@ -30,7 +72,10 @@ export function toDrawingSelection(
         pressure: point.pressure,
       })),
     })),
-    ...(screenshot === null ? {} : { screenshot }),
+    ...(capture.screenshot === undefined ? {} : { screenshot: capture.screenshot }),
+    ...(capture.screenshotBlobId === undefined
+      ? {}
+      : { screenshotBlobId: capture.screenshotBlobId }),
   };
 }
 
@@ -65,7 +110,10 @@ function describePage(pageUrl: string | undefined): string {
 
 /** A selection can be made of live edits alone, with nothing written down. */
 function describeUnwritten(selection: Selection): string {
-  const edits = selection.kind === 'element' ? (selection.styleChanges?.length ?? 0) : 0;
+  if (selection.kind !== 'element') return 'No comment';
+
+  const edits =
+    (selection.styleChanges?.length ?? 0) + (selection.textChange === undefined ? 0 : 1);
   return edits === 0 ? 'No comment' : plural(edits, 'live edit');
 }
 
