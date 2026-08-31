@@ -28,6 +28,12 @@ export interface StyleChange {
   to: string;
 }
 
+/** The element's text content, retyped live in the browser. */
+export interface TextChange {
+  from: string;
+  to: string;
+}
+
 /** Extra accessibility and DOM details captured for a selection. */
 export interface ElementContext {
   role?: string;
@@ -70,7 +76,11 @@ export interface ElementSelection {
   source?: SelectionSource;
   /** Live edits made in the overlay, as an exact before and after. */
   styleChanges?: StyleChange[];
-  /** Base64 PNG cropped to `box`, without a data-URL prefix. */
+  /** Live text edit made in the overlay, as an exact before and after. */
+  textChange?: TextChange;
+  /** Id returned by POST /blob. Preferred over `screenshot`. */
+  screenshotBlobId?: string;
+  /** Legacy inline base64 PNG, no data-URL prefix. Still accepted. */
   screenshot?: string;
 }
 
@@ -81,7 +91,9 @@ export interface DrawingSelection {
   pageUrl?: string;
   box: SelectionBox;
   strokes: DrawingStroke[];
-  /** Base64 PNG cropped to `box`, without a data-URL prefix. */
+  /** Id returned by POST /blob. Preferred over `screenshot`. */
+  screenshotBlobId?: string;
+  /** Legacy inline base64 PNG, no data-URL prefix. Still accepted. */
   screenshot?: string;
 }
 

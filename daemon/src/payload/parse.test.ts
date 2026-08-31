@@ -73,6 +73,13 @@ test('rejects malformed drawing points', () => {
   assert.match(parsed.ok ? '' : parsed.error, /pressure/);
 });
 
+test('keeps uploaded screenshot ids', () => {
+  const screenshotBlobId = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
+  const parsed = parseSendRequest(body({ selections: [{ ...validSelection, screenshotBlobId }] }));
+
+  assert.equal(firstElement(parsed)?.screenshotBlobId, screenshotBlobId);
+});
+
 test('keeps a non-blank page note', () => {
   const parsed = parseSendRequest(body({ pageNote: 'Audit this flow on mobile too.' }));
   assert.equal(parsed.ok, true);
@@ -168,6 +175,42 @@ test('drops an empty context rather than keeping noise', () => {
   const parsed = parseSendRequest(body({ selections: [{ ...validSelection, context }] }));
   assert.equal(parsed.ok, true);
   assert.equal(firstElement(parsed)?.context, undefined);
+});
+
+test('keeps a text change exactly, including meaningful whitespace', () => {
+  const textChange = { from: '  Work\n', to: '  Portfolio\n' };
+  const parsed = parseSendRequest(body({ selections: [{ ...validSelection, textChange }] }));
+
+  assert.deepEqual(firstElement(parsed)?.textChange, textChange);
+});
+
+test('rejects malformed text changes', () => {
+  const wrongType = parseSendRequest(
+    body({ selections: [{ ...validSelection, textChange: { from: 'Work', to: 42 } }] }),
+  );
+  assert.equal(wrongType.ok, false);
+  assert.match(wrongType.ok ? '' : wrongType.error, /string "from" and "to"/);
+
+  const missingSide = parseSendRequest(
+    body({ selections: [{ ...validSelection, textChange: { from: 'Work' } }] }),
+  );
+  assert.equal(missingSide.ok, false);
+  assert.match(missingSide.ok ? '' : missingSide.error, /textChange/);
+});
+
+test('rejects either side of a text change over 4000 characters', () => {
+  for (const side of ['from', 'to'] as const) {
+    const textChange = { from: 'Work', to: 'Portfolio', [side]: 'x'.repeat(4_001) };
+    const parsed = parseSendRequest(
+      body({ selections: [{ ...validSelection, textChange }] }),
+    );
+
+    assert.equal(parsed.ok, false);
+    assert.match(
+      parsed.ok ? '' : parsed.error,
+      new RegExp(`textChange\\.${side}.*4000 characters or fewer`),
+    );
+  }
 });
 
 test('keeps well-formed live edits', () => {

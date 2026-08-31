@@ -168,10 +168,11 @@ test('mentions screenshots only when some were written', () => {
   assert.doesNotMatch(without, /Screenshot/);
 });
 
-test('renders live edits as a table the agent can apply', () => {
+test('renders a text change above the style changes', () => {
   const note = renderNote('http://localhost:5173', [
     {
       selection: selection({
+        textChange: { from: 'Work', to: 'Portfolio' },
         styleChanges: [
           { property: 'font-size', from: '14px', to: '18px' },
           { property: 'color', from: 'rgb(26, 18, 6)', to: '#ff0000' },
@@ -181,12 +182,76 @@ test('renders live edits as a table the agent can apply', () => {
     },
   ]);
 
-  assert.match(note, /made these changes live in the browser/);
+  assert.match(
+    note,
+    /retyped this text live in the browser from `Work` to `Portfolio`\. Apply it in the source\./,
+  );
+  assert.doesNotMatch(note, /Before:/);
   assert.match(note, /\| `font-size` \| `14px` \| `18px` \|/);
   assert.match(note, /\| `color` \| `rgb\(26, 18, 6\)` \| `#ff0000` \|/);
+  assert.ok(note.indexOf('The user retyped') < note.indexOf('| property | from | to |'));
 });
 
-test('omits the edits table when nothing was changed live', () => {
+test('uses a safe inline-code delimiter when single-line copy contains a backtick', () => {
+  const note = renderNote('http://localhost:5173', [
+    {
+      selection: selection({
+        textChange: { from: 'Use `code` here', to: 'Use plain text here' },
+      }),
+      screenshotFile: null,
+    },
+  ]);
+
+  assert.match(note, /from ``Use `code` here`` to `Use plain text here`/);
+  assert.doesNotMatch(note, /Before:/);
+});
+
+test('describes deleted single-line text without an empty code fence', () => {
+  const note = renderNote('http://localhost:5173', [
+    {
+      selection: selection({ textChange: { from: 'Deprecated', to: '' } }),
+      screenshotFile: null,
+    },
+  ]);
+
+  assert.match(note, /deleted this text live in the browser: `Deprecated`/);
+  assert.match(note, /Remove it from the source\./);
+  assert.doesNotMatch(note, /```/);
+});
+
+test('uses a safe fence for multi-line text containing Markdown', () => {
+  const note = renderNote('http://localhost:5173', [
+    {
+      selection: selection({
+        textChange: {
+          from: 'First line\n## not a real heading\n```',
+          to: 'Replacement\n> not a quote',
+        },
+      }),
+      screenshotFile: null,
+    },
+  ]);
+
+  assert.match(note, /Before:\n````text\nFirst line\n## not a real heading\n```\n````/);
+  assert.match(note, /After:\n```text\nReplacement\n> not a quote\n```/);
+  assert.match(note, /\n```\n\n- element:/);
+});
+
+test('labels an empty side instead of rendering an empty multi-line fence', () => {
+  const note = renderNote('http://localhost:5173', [
+    {
+      selection: selection({ textChange: { from: 'Heading\nBody', to: '' } }),
+      screenshotFile: null,
+    },
+  ]);
+
+  assert.match(note, /Before:\n```text\nHeading\nBody\n```/);
+  assert.match(note, /After:\n\*\(empty\)\*/);
+  assert.doesNotMatch(note, /After:\n```text\n\n```/);
+});
+
+test('omits live-edit instructions when no changes were supplied', () => {
   const note = renderNote('http://localhost:5173', [{ selection: selection(), screenshotFile: null }]);
   assert.doesNotMatch(note, /made these changes live/);
+  assert.doesNotMatch(note, /retyped this text live/);
 });

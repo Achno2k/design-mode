@@ -1,16 +1,29 @@
 import { listAgents, sendPrompt } from '../../herdr/client.ts';
+import type { HerdrAgent } from '../../herdr/types.ts';
 import { log } from '../../logger.ts';
 import { parseSendRequest } from '../../payload/parse.ts';
 import { renderPrompt } from '../../payload/render.ts';
 import type { SendResponse } from '../../payload/types.ts';
 import { writePick } from '../../payload/writer.ts';
+import { resolveProjectScope } from '../../resolve/scope.ts';
+import { rankTargets } from '../../resolve/target.ts';
 import { json, type RouteContext, type RouteResult } from '../router.ts';
 
-interface SendDeps {
+interface SendDependencies {
   listAgents: typeof listAgents;
   sendPrompt: typeof sendPrompt;
   writePick: typeof writePick;
+  resolveProjectScope: typeof resolveProjectScope;
+  rankTargets: typeof rankTargets;
 }
+
+const defaultDependencies: SendDependencies = {
+  listAgents,
+  sendPrompt,
+  writePick,
+  resolveProjectScope,
+  rankTargets,
+};
 
 /**
  * Write a review to disk and hand it to the chosen agent.
@@ -19,7 +32,9 @@ interface SendDeps {
  * conceptually but not literally, so a stale one from a popup left open would
  * otherwise send a prompt into whatever now occupies that slot.
  */
-export function createSendHandler(deps: SendDeps = { listAgents, sendPrompt, writePick }) {
+export function createSendHandler(overrides: Partial<SendDependencies> = {}) {
+  const dependencies = { ...defaultDependencies, ...overrides };
+
   return async function handleSend({ readJson }: RouteContext): Promise<RouteResult> {
     const body = await readJson();
     if (!body.ok) return json(400, { error: body.error });
@@ -27,7 +42,7 @@ export function createSendHandler(deps: SendDeps = { listAgents, sendPrompt, wri
     const request = parseSendRequest(body.value);
     if (!request.ok) return json(400, { error: request.error });
 
-    const agents = await deps.listAgents();
+    const agents = await dependencies.listAgents();
     if (!agents.ok) return json(502, { error: agents.error });
 
     const target = agents.value.find((agent) => agent.pane_id === request.value.paneId);
@@ -42,7 +57,14 @@ export function createSendHandler(deps: SendDeps = { listAgents, sendPrompt, wri
       });
     }
 
-    const pick = await deps.writePick(request.value, new Date());
+    const ownsProject = await targetOwnsProject(target, request.value, dependencies);
+    if (!ownsProject) {
+      return json(409, {
+        error: `That agent is not working in the project behind ${request.value.url}. Refresh the targets and pick again.`,
+      });
+    }
+
+    const pick = await dependencies.writePick(request.value, new Date());
     if (!pick.ok) return json(500, { error: pick.error });
 
     const prompt = renderPrompt(
@@ -52,7 +74,7 @@ export function createSendHandler(deps: SendDeps = { listAgents, sendPrompt, wri
       pick.value.hasScreenshots,
       countPages(request.value),
     );
-    const sent = await deps.sendPrompt(request.value.paneId, prompt);
+    const sent = await dependencies.sendPrompt(request.value.paneId, prompt);
     if (!sent.ok) {
       return json(502, { error: `Wrote ${pick.value.notePath} but could not reach the agent: ${sent.error}` });
     }
@@ -68,6 +90,18 @@ export function createSendHandler(deps: SendDeps = { listAgents, sendPrompt, wri
 }
 
 export const handleSend = createSendHandler();
+
+async function targetOwnsProject(
+  target: HerdrAgent,
+  request: { url: string },
+  dependencies: SendDependencies,
+): Promise<boolean> {
+  const project = await dependencies.resolveProjectScope(request.url);
+  if (!project.ok) return true;
+
+  const candidates = await dependencies.rankTargets([target], project.value.scope);
+  return candidates.ok && candidates.value.length === 1;
+}
 
 function countPages(request: { url: string; pageNotes?: { url: string }[]; selections: { pageUrl?: string }[] }): number {
   const pages = new Set([

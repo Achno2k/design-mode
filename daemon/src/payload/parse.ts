@@ -1,3 +1,4 @@
+
 import { err, ok, type Result } from '../result.ts';
 import type {
   DrawingPoint,
@@ -9,7 +10,10 @@ import type {
   SelectionBox,
   SendRequest,
   StyleChange,
+  TextChange,
 } from './types.ts';
+
+const MAX_TEXT_CHANGE_LENGTH = 4_000;
 
 /**
  * Validate a `POST /send` body.
@@ -63,6 +67,9 @@ function parseElement(raw: Record<string, unknown>): Result<ElementSelection> {
   const box = parseBox(raw.box);
   if (!box.ok) return box;
 
+  const textChange = parseTextChange(raw.textChange);
+  if (!textChange.ok) return textChange;
+
   return ok({
     kind: 'element',
     comment: readString(raw.comment) ?? '',
@@ -76,6 +83,8 @@ function parseElement(raw: Record<string, unknown>): Result<ElementSelection> {
     context: parseContext(raw.context),
     source: parseSource(raw.source),
     styleChanges: parseStyleChanges(raw.styleChanges),
+    textChange: textChange.value,
+    screenshotBlobId: readString(raw.screenshotBlobId) ?? undefined,
     screenshot: readString(raw.screenshot) ?? undefined,
   });
 }
@@ -106,6 +115,7 @@ function parseDrawing(raw: Record<string, unknown>): Result<DrawingSelection> {
     pageUrl: readString(raw.pageUrl) ?? undefined,
     box: box.value,
     strokes,
+    screenshotBlobId: readString(raw.screenshotBlobId) ?? undefined,
     screenshot: readString(raw.screenshot) ?? undefined,
   });
 }
@@ -185,6 +195,20 @@ function parseSource(raw: unknown): ElementSelection['source'] {
 
   const column = typeof raw.column === 'number' ? raw.column : undefined;
   return { file, line, column };
+}
+
+function parseTextChange(raw: unknown): Result<TextChange | undefined> {
+  if (raw === undefined) return ok(undefined);
+  if (!isRecord(raw) || typeof raw.from !== 'string' || typeof raw.to !== 'string') {
+    return err('"textChange" must be an object with string "from" and "to" values.');
+  }
+  if (raw.from.length > MAX_TEXT_CHANGE_LENGTH) {
+    return err(`"textChange.from" must be ${MAX_TEXT_CHANGE_LENGTH} characters or fewer.`);
+  }
+  if (raw.to.length > MAX_TEXT_CHANGE_LENGTH) {
+    return err(`"textChange.to" must be ${MAX_TEXT_CHANGE_LENGTH} characters or fewer.`);
+  }
+  return ok({ from: raw.from, to: raw.to });
 }
 
 /** Live edits are optional, and a malformed one is dropped rather than fatal. */

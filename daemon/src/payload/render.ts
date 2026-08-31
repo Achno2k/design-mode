@@ -64,7 +64,7 @@ function renderSelection(item: RenderedSelection, position: number): string {
 
   if (selection.comment.trim() !== '') lines.push(...quote(selection.comment), '');
 
-  const edits = selection.kind === 'element' ? renderStyleChanges(selection) : [];
+  const edits = selection.kind === 'element' ? renderLiveChanges(selection) : [];
   if (edits.length > 0) lines.push(...edits, '');
   lines.push(...renderFacts(selection));
 
@@ -87,6 +87,67 @@ function describeLocation(selection: Selection): string {
 }
 
 /** Live edits are a specification rather than supporting context. */
+function renderLiveChanges(selection: ElementSelection): string[] {
+  const text = renderTextChange(selection);
+  const styles = renderStyleChanges(selection);
+  return text.length > 0 && styles.length > 0 ? [...text, '', ...styles] : [...text, ...styles];
+}
+
+function renderTextChange(selection: ElementSelection): string[] {
+  const change = selection.textChange;
+  if (change === undefined) return [];
+  if (!change.from.includes('\n') && !change.to.includes('\n')) {
+    return renderInlineTextChange(change.from, change.to);
+  }
+
+  return [
+    'The user retyped this text live in the browser. Apply it in the source:',
+    '',
+    'Before:',
+    ...renderTextValue(change.from),
+    '',
+    'After:',
+    ...renderTextValue(change.to),
+  ];
+}
+
+function renderInlineTextChange(from: string, to: string): string[] {
+  if (from === '' && to === '') {
+    return ['The user kept this text empty in the browser. Keep it empty in the source.'];
+  }
+  if (from === '') {
+    const added = inlineCode(to);
+    return [`The user added this text live in the browser: ${added}. Apply it in the source.`];
+  }
+  if (to === '') {
+    const deleted = inlineCode(from);
+    return [`The user deleted this text live in the browser: ${deleted}. Remove it from the source.`];
+  }
+
+  const before = inlineCode(from);
+  const after = inlineCode(to);
+  return [
+    `The user retyped this text live in the browser from ${before} to ${after}. Apply it in the source.`,
+  ];
+}
+
+function inlineCode(value: string): string {
+  const longestRun = Math.max(0, ...(value.match(/`+/g) ?? []).map((run) => run.length));
+  const marker = '`'.repeat(longestRun + 1);
+  const padding = /^[` ]|[` ]$/.test(value) ? ' ' : '';
+  return `${marker}${padding}${value}${padding}${marker}`;
+}
+
+function renderTextValue(value: string): string[] {
+  return value === '' ? ['*(empty)*'] : fence(value);
+}
+
+function fence(value: string): string[] {
+  const longestRun = Math.max(0, ...(value.match(/`+/g) ?? []).map((run) => run.length));
+  const marker = '`'.repeat(Math.max(3, longestRun + 1));
+  return [`${marker}text`, ...value.split('\n'), marker];
+}
+
 function renderStyleChanges(selection: ElementSelection): string[] {
   const changes = selection.styleChanges ?? [];
   if (changes.length === 0) return [];
