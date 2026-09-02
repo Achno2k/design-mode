@@ -5,8 +5,14 @@ import {
   toCssValue,
   type EditorGroup,
 } from '../inspect/editable.ts';
+import {
+  collectMatchingRules,
+  readAuthoredValue,
+  type AuthoredValue,
+} from '../inspect/authored-styles.ts';
 import { readTextContent, writeTextContent } from '../inspect/text-content.ts';
 import type { StyleChange, TextChange } from '../lib/protocol.ts';
+import type { BoxModel } from './box-model.ts';
 import { fill, make } from './dom.ts';
 import { createStyleRow, createTextRow, type StyleRow } from './style-rows.ts';
 
@@ -34,7 +40,12 @@ export interface StyleEditor {
 export interface StyleEditorOptions {
   /** Fires on every edit, so the composer can enable or disable its submit. */
   onChange?: () => void;
+  /** Shown over the element while a spacing row has focus or the pointer. */
+  boxModel?: BoxModel;
 }
+
+/** Rows whose value is easier to judge with the element's spacing drawn on the page. */
+const BOX_PROPERTIES = new Set(['padding', 'margin']);
 
 /**
  * Edit an element on the page and see the result immediately.
@@ -64,6 +75,7 @@ export function createStyleEditor(options: StyleEditorOptions = {}): StyleEditor
   let originalText: string | null = null;
   const originalEffective = new Map<string, string>();
   const originalInline = new Map<string, InlineValue>();
+  const originalAuthored = new Map<string, AuthoredValue>();
 
   function attach(element: Element): void {
     if (target === element && originalEffective.size > 0) return;
@@ -71,6 +83,7 @@ export function createStyleEditor(options: StyleEditorOptions = {}): StyleEditor
     target = element;
     originalEffective.clear();
     originalInline.clear();
+    originalAuthored.clear();
 
     // An element with element children has no single copy to rewrite, so the
     // row is hidden rather than shown in a state that would destroy its subtree.
@@ -78,6 +91,9 @@ export function createStyleEditor(options: StyleEditorOptions = {}): StyleEditor
     textGroup.hidden = originalText === null;
     textRow.setValue(originalText ?? '');
 
+    // Snapshotted before any edit, so the authored value is the page's own and
+    // never one of our inline overrides.
+    const rules = collectMatchingRules(element);
     const style = (element as HTMLElement).style;
     for (const row of styleRows) {
       const property = row.property.property;
@@ -87,6 +103,8 @@ export function createStyleEditor(options: StyleEditorOptions = {}): StyleEditor
         value: style.getPropertyValue(property),
         priority: style.getPropertyPriority(property),
       });
+      const authored = readAuthoredValue(rules, element, property);
+      if (authored !== undefined) originalAuthored.set(property, authored);
       row.setValue(value);
     }
   }
@@ -103,14 +121,14 @@ export function createStyleEditor(options: StyleEditorOptions = {}): StyleEditor
   function hasEdits(): boolean {
     if (target === null) return false;
     if (changedText(originalText, textRow.value()) !== null) return true;
-    return changedRows(styleRows, originalEffective).length > 0;
+    return changedRows(styleRows, originalEffective, originalAuthored).length > 0;
   }
 
   function commit(): CommittedStyleEdits {
     if (target === null) return emptyCommit();
 
     const element = target as HTMLElement;
-    const changes = changedRows(styleRows, originalEffective);
+    const changes = changedRows(styleRows, originalEffective, originalAuthored);
     const properties = new Set(changes.map((change) => change.property));
     const styleBefore = selectInlineValues(originalInline, properties);
     const styleAfter = readInlineValues(element, properties);
@@ -141,10 +159,21 @@ export function createStyleEditor(options: StyleEditorOptions = {}): StyleEditor
   }
 
   function forget(): void {
+    options.boxModel?.hide();
     target = null;
     originalText = null;
     originalEffective.clear();
     originalInline.clear();
+    originalAuthored.clear();
+  }
+
+  // Several rows can hold attention at once (one focused, another hovered), so
+  // the bands stay up until the last of them lets go.
+  const attentiveBoxRows = new Set<StyleRow>();
+
+  function refreshBoxModel(): void {
+    if (target !== null && attentiveBoxRows.size > 0) options.boxModel?.show(target);
+    else options.boxModel?.hide();
   }
 
   textRow.onInput((value) => {
@@ -153,10 +182,19 @@ export function createStyleEditor(options: StyleEditorOptions = {}): StyleEditor
   });
 
   for (const row of styleRows) {
+    const isBoxRow = BOX_PROPERTIES.has(row.property.property);
     row.onInput((value) => {
       if (target !== null) applyValue(target, row.property, value);
+      if (isBoxRow) refreshBoxModel();
       notifyChange();
     });
+    if (isBoxRow) {
+      row.onFocusChange((active) => {
+        if (active) attentiveBoxRows.add(row);
+        else attentiveBoxRows.delete(row);
+        refreshBoxModel();
+      });
+    }
   }
 
   return { attach, reset, hasEdits, commit, element: () => panel };
@@ -187,20 +225,40 @@ function changedText(before: string | null, after: string): TextChange | null {
   return { from: before, to: after };
 }
 
-function changedRows(rows: StyleRow[], originalEffective: Map<string, string>): StyleChange[] {
+/**
+ * Each change carries the stylesheet's own value beside the computed one when a
+ * rule was found, so the agent edits `var(--space-4)` or `p-4` rather than
+ * hunting for where `16px` came from.
+ */
+function changedRows(
+  rows: StyleRow[],
+  originalEffective: Map<string, string>,
+  originalAuthored: Map<string, AuthoredValue>,
+): StyleChange[] {
   return rows.flatMap((row) => {
     const property = row.property.property;
     const before = originalEffective.get(property) ?? '';
     const after = row.value();
-    return before === after
-      ? []
-      : [
-          {
-            property,
-            from: toCssValue(row.property, before) || 'unset',
-            to: toCssValue(row.property, after) || 'unset',
-          },
-        ];
+    if (before === after) return [];
+
+    const authored = originalAuthored.get(property);
+    return [
+      {
+        property,
+        from: toCssValue(row.property, before) || 'unset',
+        to: toCssValue(row.property, after) || 'unset',
+        ...(authored === undefined
+          ? {}
+          : {
+              fromAuthored: authored.value,
+              authoredBy: {
+                selector: authored.selector,
+                ...(authored.sheet === undefined ? {} : { sheet: authored.sheet }),
+                ...(authored.classes === undefined ? {} : { classes: authored.classes }),
+              },
+            }),
+      },
+    ];
   });
 }
 

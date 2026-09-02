@@ -64,6 +64,7 @@ export const BASE_CSS = `
 .layer--capturing .panel,
 .layer--capturing .highlight,
 .layer--capturing .child,
+.layer--capturing .box-band,
 .layer--capturing .chip { visibility: hidden; }
 
 /* ---------- shared surface ---------- */
