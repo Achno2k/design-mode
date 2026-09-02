@@ -7,14 +7,21 @@ import type {
   Viewport,
 } from '../lib/protocol.ts';
 import { SOURCE_MARKER } from '../inspect/marker.ts';
+import { readPseudoStyles } from '../inspect/pseudo-styles.ts';
 import { buildSelector, stableClasses } from '../inspect/selector.ts';
 import { readStyles, readText } from '../inspect/styles.ts';
 
 /** Everything about an element that can be read synchronously from the page. */
 export type ElementFacts = Omit<ElementSelection, 'comment' | 'source' | 'screenshot'>;
 
-/** Measure and describe an element. Cheap, and safe to call on every click. */
+/**
+ * Measure and describe an element. Safe to call on every click, not on hover:
+ * the pseudo-state read walks the page's stylesheets. `describeHover` is the
+ * cheap one.
+ */
 export function describeElement(element: Element): ElementFacts {
+  const pseudoStyles = readPseudoStyles(element);
+
   return {
     kind: 'element',
     tag: element.tagName.toLowerCase(),
@@ -24,6 +31,8 @@ export function describeElement(element: Element): ElementFacts {
     box: measure(element),
     styles: readStyles(element),
     context: readElementContext(element),
+    viewport: readViewport(),
+    ...(pseudoStyles.length === 0 ? {} : { pseudoStyles }),
   };
 }
 

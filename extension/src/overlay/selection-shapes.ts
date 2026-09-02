@@ -6,6 +6,7 @@ import type {
   SelectionSource,
 } from '../lib/protocol.ts';
 import type { AnnotationItem } from './annotations.ts';
+import { readViewport } from './collect.ts';
 import type { Draft } from './composer.ts';
 import type { DrawingSnapshot } from './drawing.ts';
 
@@ -26,6 +27,8 @@ export interface ElementFacts {
   box: ElementSelection['box'];
   styles: Record<string, string>;
   context?: ElementSelection['context'];
+  viewport?: ElementSelection['viewport'];
+  pseudoStyles?: ElementSelection['pseudoStyles'];
 }
 
 /** A commented element, in the protocol's shape. */
@@ -63,6 +66,7 @@ export function toDrawingSelection(
     kind: 'drawing',
     comment,
     box: { ...box },
+    viewport: readViewport(),
     strokes: snapshot.strokes.map((stroke) => ({
       color: stroke.color,
       width: stroke.width,
