@@ -1,11 +1,13 @@
 import type { ItemTriage } from '../lib/protocol.ts';
 import { fill, make } from './dom.ts';
-import { CLOSE_ICON } from './icons.ts';
+import { ARROW_UP_ICON, CLOSE_ICON } from './icons.ts';
+import { createTriageControl } from './triage-control.ts';
 
 /** One completed annotation, as the toolbar shows it back to the user. */
 export interface AnnotationItem {
   /** Position in the session's list, which is also how it is removed. */
   index: number;
+  kind: 'element' | 'drawing';
   /** The lead, such as `<button>` or `Drawing`. */
   tag: string;
   /** The rest, such as `.btn-primary` or `3 strokes`. */
@@ -23,6 +25,7 @@ export interface AnnotationActions {
   onEdit(index: number): void;
   onReselect(index: number): void;
   onMove(index: number, direction: -1 | 1): void;
+  /** An empty triage means the item was cleared back to untriaged. */
   onSetTriage(index: number, triage: ItemTriage): void;
 }
 
@@ -41,8 +44,9 @@ export interface AnnotationStack {
  *
  * A running count says how much is queued but not what it is, and a review
  * assembled over several minutes is easy to lose track of. Each row carries its
- * own thumbnail and its own remove button, so a mistake costs one click rather
- * than the whole batch.
+ * own thumbnail and its own controls, so a mistake costs one click rather than
+ * the whole batch: reorder it, reword it, point it at a different element, or
+ * say how serious it is.
  */
 export function createAnnotationStack(actions: AnnotationActions): AnnotationStack {
   const list = make('div', { className: 'stack__list' });
@@ -57,7 +61,7 @@ export function createAnnotationStack(actions: AnnotationActions): AnnotationSta
 
   return {
     set(items) {
-      list.replaceChildren(...items.map(row));
+      list.replaceChildren(...items.map((item) => row(item, items.length)));
       // Nothing left to look at, so the card gets out of the way by itself.
       if (items.length === 0) setOpen(false);
     },
@@ -69,7 +73,7 @@ export function createAnnotationStack(actions: AnnotationActions): AnnotationSta
     element: () => root,
   };
 
-  function row(item: AnnotationItem): HTMLElement {
+  function row(item: AnnotationItem, count: number): HTMLElement {
     const remove = make('button', {
       className: 'stack__remove',
       attributes: { type: 'button', title: 'Remove', 'aria-label': `Remove ${item.tag}` },
@@ -88,10 +92,57 @@ export function createAnnotationStack(actions: AnnotationActions): AnnotationSta
           make('span', { className: 'stack__detail', text: item.detail }),
         ),
         make('p', { className: 'stack__comment', text: item.comment }),
+        controls(item, count),
       ),
       remove,
     );
   }
+
+  function controls(item: AnnotationItem, count: number): HTMLElement {
+    const up = moveButton(item, -1, 'Move up');
+    const down = moveButton(item, 1, 'Move down');
+    up.disabled = item.index === 0;
+    down.disabled = item.index === count - 1;
+
+    const edit = actionButton('Edit', `Edit the comment on ${item.tag}`);
+    edit.addEventListener('click', () => actions.onEdit(item.index));
+
+    const triage = createTriageControl((next) => actions.onSetTriage(item.index, next ?? {}));
+    triage.set(item.triage);
+
+    const controlsRow = fill(
+      make('div', { className: 'stack__controls' }),
+      fill(make('span', { className: 'stack__moves' }), up, down),
+      edit,
+    );
+
+    // A drawing is a region, not an element, so there is nothing to re-pick.
+    if (item.kind === 'element') {
+      const reselect = actionButton('Reselect', `Pick a different element for ${item.tag}`);
+      reselect.addEventListener('click', () => actions.onReselect(item.index));
+      controlsRow.append(reselect);
+    }
+
+    return fill(controlsRow, triage.element());
+  }
+
+  function moveButton(item: AnnotationItem, direction: -1 | 1, label: string): HTMLButtonElement {
+    const button = make('button', {
+      className: direction === -1 ? 'stack__move' : 'stack__move stack__move--down',
+      attributes: { type: 'button', title: label, 'aria-label': `${label}: ${item.tag}` },
+    });
+    button.innerHTML = ARROW_UP_ICON;
+    button.addEventListener('click', () => actions.onMove(item.index, direction));
+    return button;
+  }
+}
+
+function actionButton(text: string, title: string): HTMLButtonElement {
+  return make('button', {
+    className: 'stack__action',
+    text,
+    attributes: { type: 'button', title },
+  });
 }
 
 /** The captured crop, or an empty tile when the screenshot did not arrive. */

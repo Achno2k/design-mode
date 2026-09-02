@@ -3,6 +3,7 @@ import { createBoxModel } from './box-model.ts';
 import { fill, make, placeNear } from './dom.ts';
 import { CHECK_ICON, SLIDERS_ICON } from './icons.ts';
 import { createStyleEditor, type CommittedStyleEdits } from './style-editor.ts';
+import { createTriageControl } from './triage-control.ts';
 
 /** What the user produced for one element. */
 export interface Draft {
@@ -60,6 +61,11 @@ export interface ComposerOptions {
  * button expands the editor, whose changes apply to the page immediately, so a
  * change can be demonstrated rather than described. Closing without submitting
  * reverts every live edit.
+ *
+ * The comment is not lost with it: a closed draft is kept for the element it was
+ * written on, and reopening on that same element brings it back. Style edits
+ * are not kept, because they are already gone from the page and re-applying
+ * them silently would be a surprise.
  */
 export function createComposer(layer: HTMLElement, options: ComposerOptions): Composer {
   // Bands are appended before the panel so the composer always paints over them.
@@ -78,6 +84,10 @@ export function createComposer(layer: HTMLElement, options: ComposerOptions): Co
     attributes: { type: 'button' },
   });
 
+  const triageControl = createTriageControl((next) => {
+    triage = next;
+  });
+
   const tag = make('span', { className: 'composer__tag' });
   const detail = make('span', { className: 'composer__detail' });
   const identity = fill(make('div', { className: 'composer__identity' }), tag, detail);
@@ -90,7 +100,7 @@ export function createComposer(layer: HTMLElement, options: ComposerOptions): Co
     fill(make('div', { className: 'composer__prompt' }), expand, input),
     identity,
     editorPanel,
-    fill(make('div', { className: 'composer__footer' }), cancel, submit),
+    fill(make('div', { className: 'composer__footer' }), cancel, triageControl.element(), submit),
   );
   layer.append(panel);
 
@@ -100,12 +110,31 @@ export function createComposer(layer: HTMLElement, options: ComposerOptions): Co
   let onSubmit: ((draft: Draft) => void) | null = null;
   let onDismiss: (() => void) | null = null;
   let triage: ItemTriage | undefined;
+  let stash: Stash | null = null;
 
   function close(): void {
     const dismissed = onDismiss;
+    keepDraft();
     editor.reset();
     resetPanel();
     dismissed?.();
+  }
+
+  /** What the composer is open on, so a draft can be matched to it later. */
+  function draftKey(): StashKey | null {
+    if (target !== null) return target;
+    if (anchor === null || anchor instanceof Element) return null;
+    return JSON.stringify(anchor);
+  }
+
+  /** Remember what was typed, so an accidental Escape costs nothing. */
+  function keepDraft(): void {
+    const key = draftKey();
+    const comment = input.value.trim();
+    stash =
+      key === null || (comment === '' && triage === undefined)
+        ? null
+        : { key, comment, ...(triage === undefined ? {} : { triage }) };
   }
 
   /**
@@ -132,6 +161,7 @@ export function createComposer(layer: HTMLElement, options: ComposerOptions): Co
 
     const handler = onSubmit;
     const hasEdits = styleChanges.length > 0 || textChange !== undefined;
+    stash = null;
     // Cleared without reverting, so the live edits stay on screen after adding.
     resetPanel();
     handler?.({
@@ -156,6 +186,7 @@ export function createComposer(layer: HTMLElement, options: ComposerOptions): Co
     onSubmit = null;
     onDismiss = null;
     triage = undefined;
+    triageControl.set(undefined);
     updateSubmit();
   }
 
@@ -234,8 +265,12 @@ export function createComposer(layer: HTMLElement, options: ComposerOptions): Co
 
   function openPanel(next: ElementLabel, initial?: ComposerInitial): void {
     showLabel(next);
-    input.value = initial?.comment ?? '';
-    triage = initial?.triage;
+    // An explicit start wins over a kept draft: editing an item must show the
+    // item, not whatever was last abandoned on its element.
+    const start = initial ?? restoredDraft();
+    input.value = start?.comment ?? '';
+    triage = start?.triage;
+    triageControl.set(triage);
     panel.removeAttribute('hidden');
     resize();
     updateSubmit();
@@ -243,8 +278,15 @@ export function createComposer(layer: HTMLElement, options: ComposerOptions): Co
     input.focus();
   }
 
+  function restoredDraft(): ComposerInitial | undefined {
+    if (stash === null || stash.key !== draftKey()) return undefined;
+    return stash;
+  }
+
   return {
     open(element, next, handler, dismissed, initial) {
+      // Opening straight onto another element is a close in all but name.
+      if (isOpen()) keepDraft();
       anchor = element;
       target = element;
       editorAttached = false;
@@ -254,6 +296,7 @@ export function createComposer(layer: HTMLElement, options: ComposerOptions): Co
       openPanel(next, initial);
     },
     openAt(box, next, handler, dismissed, initial) {
+      if (isOpen()) keepDraft();
       editor.reset();
       anchor = { ...box };
       target = null;
@@ -265,8 +308,19 @@ export function createComposer(layer: HTMLElement, options: ComposerOptions): Co
       openPanel(next, initial);
     },
     close,
-    isOpen: () => !panel.hasAttribute('hidden'),
+    isOpen,
   };
+
+  function isOpen(): boolean {
+    return !panel.hasAttribute('hidden');
+  }
+}
+
+/** A draft that was closed without submitting, and what it was written on. */
+type StashKey = Element | string;
+
+interface Stash extends ComposerInitial {
+  key: StashKey;
 }
 
 function iconButton(className: string, icon: string, title: string): HTMLButtonElement {

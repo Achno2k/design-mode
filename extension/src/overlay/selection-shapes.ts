@@ -2,6 +2,7 @@ import type { CapturedScreenshot } from '../lib/messaging.ts';
 import type {
   DrawingSelection,
   ElementSelection,
+  ItemTriage,
   Selection,
   SelectionSource,
 } from '../lib/protocol.ts';
@@ -48,6 +49,7 @@ export function toElementSelection(
     ...(draft.styleChanges.length === 0 ? {} : { styleChanges: draft.styleChanges }),
     ...(draft.textChange === undefined ? {} : { textChange: draft.textChange }),
     ...(source === undefined ? {} : { source }),
+    ...(draft.triage === undefined ? {} : { triage: draft.triage }),
     ...(capture.screenshot === undefined ? {} : { screenshot: capture.screenshot }),
     ...(capture.screenshotBlobId === undefined
       ? {}
@@ -60,11 +62,13 @@ export function toDrawingSelection(
   snapshot: DrawingSnapshot,
   comment: string,
   capture: CapturedScreenshot,
+  triage?: ItemTriage,
 ): DrawingSelection {
   const { box } = snapshot;
   return {
     kind: 'drawing',
     comment,
+    ...(triage === undefined ? {} : { triage }),
     box: { ...box },
     viewport: readViewport(),
     strokes: snapshot.strokes.map((stroke) => ({
@@ -95,10 +99,12 @@ export function toAnnotationItem(selection: Selection, index: number): Annotatio
 
   return {
     index,
+    kind: selection.kind,
     ...shape,
     detail: [shape.detail, describePage(selection.pageUrl)].filter((part) => part !== '').join(' · '),
     comment: selection.comment === '' ? describeUnwritten(selection) : selection.comment,
     ...(selection.screenshot === undefined ? {} : { screenshot: selection.screenshot }),
+    ...(selection.triage === undefined ? {} : { triage: selection.triage }),
   };
 }
 

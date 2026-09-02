@@ -103,7 +103,9 @@ export function createController(layer: HTMLElement, host: Element): Controller 
     styleEffects,
     reviewSession,
     tray,
+    composer,
     isPicking: () => picking,
+    setPicking,
     onChanged: () => sendFlow.invalidate(),
   });
   const sendFlow = createSendFlow({
@@ -393,7 +395,7 @@ export function createController(layer: HTMLElement, host: Element): Controller 
     const committed = drawing.commit() ?? pending;
 
     selectionOps.add({
-      ...toDrawingSelection(committed, includeCaptureReason(draft.comment, capture), capture),
+      ...toDrawingSelection(committed, includeCaptureReason(draft.comment, capture), capture, draft.triage),
       pageUrl: window.location.href,
     });
 
