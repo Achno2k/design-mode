@@ -17,4 +17,14 @@ export const PICK_ROW_CSS = `
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.pick-row__actions { display: flex; align-items: center; gap: 2px; flex: none; }
+.pick-row__action {
+  padding: 3px 9px;
+  border-color: var(--hairline);
+  background: var(--surface-container);
+  font-size: 11px;
+  line-height: 14px;
+  white-space: nowrap;
+}
+.pick-row__action:hover { background: var(--surface-high); color: var(--accent); }
 `;

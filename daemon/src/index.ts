@@ -3,9 +3,10 @@ import { createServer } from 'node:http';
 import { readOrCreateToken } from './auth/token.ts';
 import { watchBuild } from './build-watch.ts';
 import { config } from './config.ts';
-import { isInsideHerdr } from './herdr/client.ts';
+import { isInsideHerdr, listAgents } from './herdr/client.ts';
 import { log } from './logger.ts';
 import { cleanExpiredPicks } from './payload/cleanup.ts';
+import { createPickTracker } from './picks/pick-tracker.ts';
 import { createRequestListener } from './server/router.ts';
 import { createRoutes } from './server/routes/index.ts';
 
@@ -34,7 +35,10 @@ async function main(): Promise<void> {
   if (!cleanup.ok) log.warn(cleanup.error);
 
   const builds = watchBuild(config.distDir);
-  const server = createServer(createRequestListener(createRoutes(builds, token.value), token.value));
+  const picks = createPickTracker({ listAgents });
+  const server = createServer(
+    createRequestListener(createRoutes(builds, token.value, picks), token.value),
+  );
 
   server.on('error', (cause: NodeJS.ErrnoException) => {
     const message =
@@ -43,6 +47,7 @@ async function main(): Promise<void> {
         : `Server error: ${cause.message}`;
     log.error(message);
     builds.stop();
+    picks.stop();
     process.exit(1);
   });
 
@@ -54,6 +59,7 @@ async function main(): Promise<void> {
     process.on(signal, () => {
       log.info('Shutting down.');
       builds.stop();
+      picks.stop();
       server.close(() => process.exit(0));
     });
   }

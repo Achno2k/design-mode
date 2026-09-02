@@ -6,7 +6,8 @@ const SAVE_DELAY_MS = 100;
 /** Persist one tab's review while full-page navigations replace its content script. */
 export interface ReviewSessionState {
   restore(stored: ReviewSession): string;
-  save(picking: boolean): void;
+  /** Resolves once the session is in extension storage; a reload may then follow safely. */
+  save(picking: boolean): Promise<void>;
   setPageNote(url: string, note: string, picking: boolean): void;
   pageNote(url: string): string;
   pageNotes(): ReviewPageNote[];
@@ -14,7 +15,7 @@ export interface ReviewSessionState {
   end(): void;
   /** The last review sent from this tab, followed until it is done or replaced. */
   lastPick(): SentPick | null;
-  setLastPick(pick: SentPick | null, picking: boolean): void;
+  setLastPick(pick: SentPick | null, picking: boolean): Promise<void>;
   isConsoleCapture(): boolean;
   setConsoleCapture(on: boolean, picking: boolean): void;
   consoleErrors(): ConsoleEntry[];
@@ -42,10 +43,10 @@ export function createReviewSessionState(
     return notes[currentUrl()] ?? '';
   }
 
-  function save(picking: boolean): void {
+  function save(picking: boolean): Promise<void> {
     if (saveTimer !== null) window.clearTimeout(saveTimer);
     saveTimer = null;
-    void write(picking);
+    return write(picking);
   }
 
   function saveAfterTyping(picking: boolean): void {
@@ -113,7 +114,7 @@ export function createReviewSessionState(
     lastPick: () => sentPick,
     setLastPick(pick, picking) {
       sentPick = pick;
-      save(picking);
+      return save(picking);
     },
     isConsoleCapture: () => consoleCapture,
     setConsoleCapture(on, picking) {

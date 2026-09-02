@@ -2,9 +2,11 @@ import { listAgents, sendPrompt } from '../../herdr/client.ts';
 import type { HerdrAgent } from '../../herdr/types.ts';
 import { log } from '../../logger.ts';
 import { parseSendRequest } from '../../payload/parse.ts';
+import { writePickRecord } from '../../payload/pick-record.ts';
 import { renderPrompt } from '../../payload/render.ts';
 import type { SendResponse } from '../../payload/types.ts';
-import { writePick } from '../../payload/writer.ts';
+import { writePick, type WrittenPick } from '../../payload/writer.ts';
+import type { PickTracker } from '../../picks/pick-tracker.ts';
 import { resolveProjectScope } from '../../resolve/scope.ts';
 import { rankTargets } from '../../resolve/target.ts';
 import { json, type RouteContext, type RouteResult } from '../router.ts';
@@ -13,16 +15,20 @@ interface SendDependencies {
   listAgents: typeof listAgents;
   sendPrompt: typeof sendPrompt;
   writePick: typeof writePick;
+  writePickRecord: typeof writePickRecord;
   resolveProjectScope: typeof resolveProjectScope;
   rankTargets: typeof rankTargets;
+  now: () => Date;
 }
 
 const defaultDependencies: SendDependencies = {
   listAgents,
   sendPrompt,
   writePick,
+  writePickRecord,
   resolveProjectScope,
   rankTargets,
+  now: () => new Date(),
 };
 
 /**
@@ -32,7 +38,7 @@ const defaultDependencies: SendDependencies = {
  * conceptually but not literally, so a stale one from a popup left open would
  * otherwise send a prompt into whatever now occupies that slot.
  */
-export function createSendHandler(overrides: Partial<SendDependencies> = {}) {
+export function createSendHandler(tracker: PickTracker, overrides: Partial<SendDependencies> = {}) {
   const dependencies = { ...defaultDependencies, ...overrides };
 
   return async function handleSend({ readJson }: RouteContext): Promise<RouteResult> {
@@ -64,7 +70,8 @@ export function createSendHandler(overrides: Partial<SendDependencies> = {}) {
       });
     }
 
-    const pick = await dependencies.writePick(request.value, new Date());
+    const sentAt = dependencies.now();
+    const pick = await dependencies.writePick(request.value, sentAt);
     if (!pick.ok) return json(500, { error: pick.error });
 
     const prompt = renderPrompt(
@@ -80,6 +87,7 @@ export function createSendHandler(overrides: Partial<SendDependencies> = {}) {
     }
 
     log.info(`Sent ${request.value.selections.length} selection(s) to ${request.value.paneId}`);
+    await follow(tracker, target, pick.value, sentAt, dependencies);
 
     return json(200, {
       pickId: pick.value.pickId,
@@ -89,7 +97,36 @@ export function createSendHandler(overrides: Partial<SendDependencies> = {}) {
   };
 }
 
-export const handleSend = createSendHandler();
+/**
+ * Start following the review. The base seq is the agent's seq from the same
+ * list that validated the pane, so a state change caused by the prompt itself
+ * cannot be missed. The record on disk is what survives a daemon restart; a
+ * failure to write it costs recovery, not the review, so it is only logged.
+ */
+async function follow(
+  tracker: PickTracker,
+  target: HerdrAgent,
+  pick: WrittenPick,
+  sentAt: Date,
+  dependencies: SendDependencies,
+): Promise<void> {
+  const sessionId = target.agent_session?.value;
+  const tracked = {
+    pickId: pick.pickId,
+    paneId: target.pane_id,
+    notePath: pick.notePath,
+    ...(sessionId === undefined ? {} : { sessionId }),
+    baseSeq: target.state_change_seq,
+    followUps: 0,
+  };
+  tracker.track(tracked);
+
+  const written = await dependencies.writePickRecord(pick.directory, {
+    ...tracked,
+    sentAt: sentAt.toISOString(),
+  });
+  if (!written.ok) log.warn(written.error);
+}
 
 async function targetOwnsProject(
   target: HerdrAgent,
