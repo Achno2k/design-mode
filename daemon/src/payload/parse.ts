@@ -1,5 +1,21 @@
 
 import { err, ok, type Result } from '../result.ts';
+import {
+  parseConsoleErrors,
+  parseFrame,
+  parsePath,
+  parsePseudoStyles,
+  parseTriage,
+  parseViewport,
+} from './parse-extras.ts';
+import {
+  isFiniteNumber,
+  isPositiveNumber,
+  isRecord,
+  readString,
+  readStringArray,
+  readStringMap,
+} from './parse-primitives.ts';
 import type {
   DrawingPoint,
   DrawingSelection,
@@ -33,6 +49,7 @@ export function parseSendRequest(body: unknown): Result<SendRequest> {
 
   const pageNote = readString(body.pageNote) ?? undefined;
   const pageNotes = parsePageNotes(body.pageNotes);
+  const consoleErrors = parseConsoleErrors(body.consoleErrors);
   if (!Array.isArray(body.selections)) return err('"selections" must be an array.');
   if (body.selections.length === 0 && pageNote === undefined && pageNotes.length === 0) {
     return err('Provide at least one selection or a non-empty "pageNote" or "pageNotes" entry.');
@@ -51,6 +68,7 @@ export function parseSendRequest(body: unknown): Result<SendRequest> {
     ...(pageNote === undefined ? {} : { pageNote }),
     ...(pageNotes.length === 0 ? {} : { pageNotes }),
     selections,
+    ...(consoleErrors === undefined ? {} : { consoleErrors }),
   });
 }
 
@@ -86,6 +104,11 @@ function parseElement(raw: Record<string, unknown>): Result<ElementSelection> {
     textChange: textChange.value,
     screenshotBlobId: readString(raw.screenshotBlobId) ?? undefined,
     screenshot: readString(raw.screenshot) ?? undefined,
+    triage: parseTriage(raw.triage),
+    path: parsePath(raw.path),
+    frame: parseFrame(raw.frame),
+    viewport: parseViewport(raw.viewport),
+    pseudoStyles: parsePseudoStyles(raw.pseudoStyles),
   });
 }
 
@@ -117,6 +140,8 @@ function parseDrawing(raw: Record<string, unknown>): Result<DrawingSelection> {
     strokes,
     screenshotBlobId: readString(raw.screenshotBlobId) ?? undefined,
     screenshot: readString(raw.screenshot) ?? undefined,
+    triage: parseTriage(raw.triage),
+    viewport: parseViewport(raw.viewport),
   });
 }
 
@@ -221,10 +246,37 @@ function parseStyleChanges(raw: unknown): StyleChange[] | undefined {
     const property = readString(entry.property);
     const from = readString(entry.from);
     const to = readString(entry.to);
-    return property === null || from === null || to === null ? [] : [{ property, from, to }];
+    if (property === null || from === null || to === null) return [];
+
+    const fromAuthored = readString(entry.fromAuthored);
+    const authoredBy = parseAuthoredBy(entry.authoredBy);
+    return [
+      {
+        property,
+        from,
+        to,
+        ...(fromAuthored === null ? {} : { fromAuthored }),
+        ...(authoredBy === undefined ? {} : { authoredBy }),
+      },
+    ];
   });
 
   return changes.length === 0 ? undefined : changes;
+}
+
+function parseAuthoredBy(raw: unknown): StyleChange['authoredBy'] {
+  if (!isRecord(raw)) return undefined;
+
+  const selector = readString(raw.selector);
+  if (selector === null) return undefined;
+
+  const sheet = readString(raw.sheet);
+  const classes = readStringArray(raw.classes);
+  return {
+    selector,
+    ...(sheet === null ? {} : { sheet }),
+    ...(classes.length === 0 ? {} : { classes }),
+  };
 }
 
 function parsePageNotes(raw: unknown): ReviewPageNote[] {
@@ -236,32 +288,4 @@ function parsePageNotes(raw: unknown): ReviewPageNote[] {
     const comment = readString(entry.comment);
     return url === null || comment === null ? [] : [{ url, comment }];
   });
-}
-
-function readString(value: unknown): string | null {
-  return typeof value === 'string' && value.trim() !== '' ? value : null;
-}
-
-function readStringArray(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
-}
-
-function readStringMap(value: unknown): Record<string, string> {
-  if (!isRecord(value)) return {};
-
-  return Object.fromEntries(
-    Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === 'string'),
-  );
-}
-
-function isFiniteNumber(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value);
-}
-
-function isPositiveNumber(value: unknown): value is number {
-  return isFiniteNumber(value) && value > 0;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

@@ -1,3 +1,4 @@
+import type { ItemTriage } from '../lib/protocol.ts';
 import { fill, make } from './dom.ts';
 import { CLOSE_ICON } from './icons.ts';
 
@@ -13,6 +14,16 @@ export interface AnnotationItem {
   comment: string;
   /** Base64 PNG without a data-URL prefix, when the capture succeeded. */
   screenshot?: string;
+  triage?: ItemTriage;
+}
+
+/** What a row lets the user do to its annotation. */
+export interface AnnotationActions {
+  onRemove(index: number): void;
+  onEdit(index: number): void;
+  onReselect(index: number): void;
+  onMove(index: number, direction: -1 | 1): void;
+  onSetTriage(index: number, triage: ItemTriage): void;
 }
 
 /** The card of pending annotations that floats above the toolbar. */
@@ -33,7 +44,7 @@ export interface AnnotationStack {
  * own thumbnail and its own remove button, so a mistake costs one click rather
  * than the whole batch.
  */
-export function createAnnotationStack(onRemove: (index: number) => void): AnnotationStack {
+export function createAnnotationStack(actions: AnnotationActions): AnnotationStack {
   const list = make('div', { className: 'stack__list' });
   const root = fill(make('div', { className: 'stack' }), list);
 
@@ -64,7 +75,7 @@ export function createAnnotationStack(onRemove: (index: number) => void): Annota
       attributes: { type: 'button', title: 'Remove', 'aria-label': `Remove ${item.tag}` },
     });
     remove.innerHTML = CLOSE_ICON;
-    remove.addEventListener('click', () => onRemove(item.index));
+    remove.addEventListener('click', () => actions.onRemove(item.index));
 
     return fill(
       make('div', { className: 'stack__row' }),

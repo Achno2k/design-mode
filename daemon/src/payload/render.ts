@@ -1,4 +1,17 @@
-import type { DrawingSelection, ElementSelection, ReviewPageNote, Selection } from './types.ts';
+import {
+  renderAuthoredCell,
+  renderConsoleErrors,
+  renderPseudoStyleFacts,
+  renderTriage,
+  renderViewportFact,
+} from './render-extras.ts';
+import type {
+  ConsoleEntry,
+  DrawingSelection,
+  ElementSelection,
+  ReviewPageNote,
+  Selection,
+} from './types.ts';
 
 /** A selection paired with the screenshot filename written next to the note. */
 export interface RenderedSelection {
@@ -12,6 +25,7 @@ export function renderNote(
   items: RenderedSelection[],
   pageNote?: string,
   pageNotes: ReviewPageNote[] = [],
+  consoleErrors: ConsoleEntry[] = [],
 ): string {
   const pages = reviewPages(url, items, pageNotes);
   const heading = `# Browser review — ${pages.length === 1 ? pages[0] : `${pages.length} pages`}`;
@@ -26,8 +40,9 @@ export function renderNote(
     ...quote(entry.comment),
     '',
   ]);
+  const consoleSection = renderConsoleErrors(consoleErrors);
   const sections = items.map((item, index) => renderSelection(item, index + 1));
-  return [heading, '', intro, '', ...legacyPageSection, ...pageSections, ...sections]
+  return [heading, '', intro, '', ...legacyPageSection, ...pageSections, ...consoleSection, ...sections]
     .join('\n')
     .trimEnd() + '\n';
 }
@@ -60,7 +75,7 @@ function reviewPages(
 
 function renderSelection(item: RenderedSelection, position: number): string {
   const { selection, screenshotFile } = item;
-  const lines = [`## ${position}. ${describeLocation(selection)}`, ''];
+  const lines = [`## ${position}. ${renderTriage(selection.triage)}${describeLocation(selection)}`, ''];
 
   if (selection.comment.trim() !== '') lines.push(...quote(selection.comment), '');
 
@@ -152,12 +167,18 @@ function renderStyleChanges(selection: ElementSelection): string[] {
   const changes = selection.styleChanges ?? [];
   if (changes.length === 0) return [];
 
+  const hasAuthored = changes.some((change) => change.fromAuthored !== undefined);
+  const header = hasAuthored ? '| property | from | authored | to |' : '| property | from | to |';
+  const rule = hasAuthored ? '| --- | --- | --- | --- |' : '| --- | --- | --- |';
   return [
     'The user made these changes live in the browser. Apply them in the source:',
     '',
-    '| property | from | to |',
-    '| --- | --- | --- |',
-    ...changes.map((change) => `| \`${change.property}\` | \`${change.from}\` | \`${change.to}\` |`),
+    header,
+    rule,
+    ...changes.map((change) => {
+      const authored = hasAuthored ? ` ${renderAuthoredCell(change)} |` : '';
+      return `| \`${change.property}\` | \`${change.from}\` |${authored} \`${change.to}\` |`;
+    }),
   ];
 }
 
@@ -177,6 +198,7 @@ function renderDrawingFacts(selection: DrawingSelection): string[] {
     ...(selection.pageUrl === undefined ? [] : [`- page: ${selection.pageUrl}`]),
     `- annotation: freehand drawing with ${selection.strokes.length} ${strokeLabel} and ${pointCount} ${pointLabel}`,
     `- box: ${formatBox(selection)}`,
+    ...(selection.viewport === undefined ? [] : [renderViewportFact(selection.viewport)]),
     `- brushes: ${brushes.map((brush) => `\`${brush}\``).join(', ')}`,
   ];
 }
@@ -186,17 +208,26 @@ function renderElementFacts(selection: ElementSelection): string[] {
 
   if (selection.pageUrl !== undefined) facts.push(`- page: ${selection.pageUrl}`);
 
+  if (selection.frame !== undefined) {
+    facts.push(`- frame: \`${selection.frame.selector}\` (${selection.frame.url})`);
+  }
   if (selection.selector !== '') facts.push(`- selector: \`${selection.selector}\``);
+  if (selection.path !== undefined && selection.path.includes('::shadow')) {
+    facts.push(`- path: \`${selection.path.join(' > ')}\``);
+  }
   if (selection.classes.length > 0) facts.push(`- classes: \`${selection.classes.join(' ')}\``);
   if (selection.text !== '') facts.push(`- text: ${JSON.stringify(selection.text)}`);
 
   facts.push(...renderContextFacts(selection));
   facts.push(`- box: ${formatBox(selection)}`);
+  if (selection.viewport !== undefined) facts.push(renderViewportFact(selection.viewport));
 
   const styles = Object.entries(selection.styles);
   if (styles.length > 0) {
     facts.push(`- styles: ${styles.map(([name, value]) => `${name}: ${value}`).join('; ')}`);
   }
+
+  if (selection.pseudoStyles !== undefined) facts.push(...renderPseudoStyleFacts(selection.pseudoStyles));
 
   if (selection.source === undefined) {
     facts.push(

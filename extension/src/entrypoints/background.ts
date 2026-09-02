@@ -1,7 +1,10 @@
 import { captureTabScreenshot } from '../capture/tab.ts';
 import { readSourceInPage } from '../inspect/source.ts';
+import { installConsoleHookInTab } from '../lib/console-hook-install.ts';
 import { fetchTargets, postSend } from '../lib/daemon.ts';
+import { relayFrameCommand, relayFrameEvent } from '../lib/frame-relay.ts';
 import { startLiveReload } from '../lib/live-reload.ts';
+import { fetchPickStatus, postFollowUp } from '../lib/pick-client.ts';
 import {
   clearReviewSession,
   fail,
@@ -66,7 +69,7 @@ async function handle(
       return postSend(message.request);
 
     case 'read-source':
-      return readSourceFromTab(sender.tab?.id, message.marker);
+      return readSourceFromTab(sender.tab?.id, message.marker, message.frameId);
 
     case 'capture':
       return captureTabScreenshot(sender.tab?.id, sender.tab?.windowId, message.request);
@@ -82,6 +85,21 @@ async function handle(
 
     case 'clear-review-session':
       return withSenderTab(sender, clearReviewSession);
+
+    case 'pick-status':
+      return fetchPickStatus(message.pickId, message.since);
+
+    case 'follow-up':
+      return postFollowUp(message.request);
+
+    case 'install-console-hook':
+      return installConsoleHookInTab(sender.tab?.id);
+
+    case 'frame-event':
+      return relayFrameEvent(sender, message.event);
+
+    case 'frame-command':
+      return relayFrameCommand(sender.tab?.id, message.frameId, message.command);
 
     default:
       return fail('Unknown request.');
@@ -102,12 +120,18 @@ function withSenderTab<T>(
  * `func` is serialised with `toString()`, which is why `readSourceInPage` has
  * no imports and takes the marker attribute through `args`.
  */
-async function readSourceFromTab(tabId: number | undefined, marker: string): Promise<Answer<unknown>> {
+async function readSourceFromTab(
+  tabId: number | undefined,
+  marker: string,
+  frameId?: number,
+): Promise<Answer<unknown>> {
   if (tabId === undefined) return fail('Could not tell which tab asked for this.');
 
   try {
     const [result] = await chrome.scripting.executeScript({
-      target: { tabId },
+      // Without a frame id the top frame is searched, which is where the
+      // marker is unless the element lives in an iframe.
+      target: frameId === undefined ? { tabId } : { tabId, frameIds: [frameId] },
       world: 'MAIN',
       func: readSourceInPage,
       args: [marker],

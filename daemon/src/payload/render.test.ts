@@ -255,3 +255,65 @@ test('omits live-edit instructions when no changes were supplied', () => {
   assert.doesNotMatch(note, /made these changes live/);
   assert.doesNotMatch(note, /retyped this text live/);
 });
+
+test('a triaged item carries its tag in the heading', () => {
+  const note = renderNote('http://localhost:3000', [
+    {
+      selection: selection({ triage: { category: 'bug', priority: 'P1' }, source: { file: 'src/Card.tsx', line: 42 } }),
+      screenshotFile: null,
+    },
+  ]);
+  assert.match(note, /## 1\. \[bug · P1\] src\/Card\.tsx:42/);
+});
+
+test('console errors sit between page notes and the first item', () => {
+  const note = renderNote(
+    'http://localhost:3000',
+    [{ selection: selection(), screenshotFile: null }],
+    undefined,
+    [{ url: 'http://localhost:3000', comment: 'Overall spacing feels tight.' }],
+    [{ level: 'error', message: 'TypeError: x is undefined', at: 1, pageUrl: 'http://localhost:3000', count: 1 }],
+  );
+  const pageNote = note.indexOf('## Page note');
+  const consoleSection = note.indexOf('## Console errors');
+  const firstItem = note.indexOf('## 1.');
+  assert.ok(pageNote < consoleSection && consoleSection < firstItem);
+});
+
+test('style changes gain an authored column only when one is known', () => {
+  const plain = renderNote('http://localhost:3000', [
+    { selection: selection({ styleChanges: [{ property: 'padding', from: '16px', to: '24px' }] }), screenshotFile: null },
+  ]);
+  assert.match(plain, /\| property \| from \| to \|/);
+
+  const authored = renderNote('http://localhost:3000', [
+    {
+      selection: selection({
+        styleChanges: [
+          { property: 'padding', from: '16px', to: '24px', fromAuthored: 'var(--space-4)', authoredBy: { selector: '.card' } },
+        ],
+      }),
+      screenshotFile: null,
+    },
+  ]);
+  assert.match(authored, /\| property \| from \| authored \| to \|/);
+  assert.match(authored, /\| `padding` \| `16px` \| `var\(--space-4\)` \(`\.card`\) \| `24px` \|/);
+});
+
+test('viewport, frame, path, and pseudo states are listed as facts', () => {
+  const note = renderNote('http://localhost:3000', [
+    {
+      selection: selection({
+        viewport: { width: 1440, height: 900, dpr: 2, scrollX: 0, scrollY: 0 },
+        frame: { selector: 'iframe#preview', url: 'http://localhost:3000/embed' },
+        path: ['my-card', '::shadow', 'button'],
+        pseudoStyles: [{ pseudo: ':hover', selector: '.btn:hover', declarations: { color: 'red' } }],
+      }),
+      screenshotFile: null,
+    },
+  ]);
+  assert.match(note, /- viewport: 1440x900 @2x/);
+  assert.match(note, /- frame: `iframe#preview` \(http:\/\/localhost:3000\/embed\)/);
+  assert.match(note, /- path: `my-card > ::shadow > button`/);
+  assert.match(note, /- :hover \(`\.btn:hover`\): color: red/);
+});

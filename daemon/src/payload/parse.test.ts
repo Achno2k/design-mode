@@ -224,3 +224,36 @@ test('drops an incomplete live edit rather than failing the whole review', () =>
   const parsed = parseSendRequest(body({ selections: [{ ...validSelection, styleChanges }] }));
   assert.deepEqual(firstElement(parsed)?.styleChanges, [{ property: 'color', from: 'a', to: 'b' }]);
 });
+
+test('keeps protocol 3 context on elements and drops malformed pieces', () => {
+  const parsed = parseSendRequest(
+    body({
+      selections: [
+        {
+          ...validSelection,
+          triage: { category: 'polish' },
+          viewport: { width: 1440, height: 900, dpr: 2, scrollX: 0, scrollY: 0 },
+          path: ['main', 'my-card', '::shadow', 'button'],
+          frame: { selector: 'iframe', url: 'nope' },
+          pseudoStyles: [{ pseudo: ':hover', selector: '.btn:hover', declarations: { color: 'red' } }],
+          styleChanges: [{ property: 'padding', from: '16px', to: '24px', fromAuthored: '1rem', authoredBy: { selector: '.p-4', classes: ['p-4'] } }],
+        },
+      ],
+      consoleErrors: [{ level: 'console', message: 'boom', at: 1, pageUrl: 'http://localhost:3000', count: 2 }, 'junk'],
+    }),
+  );
+  const element = firstElement(parsed);
+  assert.deepEqual(element?.triage, { category: 'polish' });
+  assert.equal(element?.viewport?.dpr, 2);
+  assert.deepEqual(element?.path, ['main', 'my-card', '::shadow', 'button']);
+  assert.deepEqual(element?.frame, { selector: 'iframe', url: 'nope' });
+  assert.equal(element?.pseudoStyles?.length, 1);
+  assert.deepEqual(element?.styleChanges?.[0], {
+    property: 'padding',
+    from: '16px',
+    to: '24px',
+    fromAuthored: '1rem',
+    authoredBy: { selector: '.p-4', classes: ['p-4'] },
+  });
+  assert.equal(parsed.ok && parsed.value.consoleErrors?.length, 1);
+});

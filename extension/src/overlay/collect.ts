@@ -1,5 +1,11 @@
 import { askBackground, type Answer, type CapturedScreenshot } from '../lib/messaging.ts';
-import type { ElementContext, ElementSelection, SelectionBox, SelectionSource } from '../lib/protocol.ts';
+import type {
+  ElementContext,
+  ElementSelection,
+  SelectionBox,
+  SelectionSource,
+  Viewport,
+} from '../lib/protocol.ts';
 import { SOURCE_MARKER } from '../inspect/marker.ts';
 import { buildSelector, stableClasses } from '../inspect/selector.ts';
 import { readStyles, readText } from '../inspect/styles.ts';
@@ -18,6 +24,17 @@ export function describeElement(element: Element): ElementFacts {
     box: measure(element),
     styles: readStyles(element),
     context: readElementContext(element),
+  };
+}
+
+/** The viewport as it is right now, so a note can say what the user was looking at. */
+export function readViewport(): Viewport {
+  return {
+    width: window.innerWidth,
+    height: window.innerHeight,
+    dpr: window.devicePixelRatio,
+    scrollX: window.scrollX,
+    scrollY: window.scrollY,
   };
 }
 

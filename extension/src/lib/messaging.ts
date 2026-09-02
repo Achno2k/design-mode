@@ -1,4 +1,11 @@
 import type {
+  ConsoleEntry,
+  ElementSelection,
+  FollowUpRequest,
+  FollowUpResponse,
+  FrameRef,
+  PickStatus,
+  PickStatusResponse,
   Selection,
   SelectionBox,
   SelectionSource,
@@ -32,7 +39,53 @@ export interface ReviewSession {
   selections: Selection[];
   /** One draft page note per exact URL. */
   pageNotes: Record<string, string>;
+  /** The most recently sent review, kept so its agent can be followed. */
+  lastPick?: SentPick;
+  /** Whether console errors are being collected for this review. */
+  consoleCapture?: boolean;
+  consoleErrors?: ConsoleEntry[];
 }
+
+/** Enough about one sent item to find it on the page again. */
+export interface SentPickItem {
+  selector: string;
+  path?: string[];
+  pageUrl: string;
+  frame?: FrameRef;
+}
+
+/** A review that has been delivered, as far as the extension knows. */
+export interface SentPick {
+  pickId: string;
+  paneId: string;
+  notePath: string;
+  sentAt: number;
+  status: PickStatus;
+  /** Last status sequence seen, so the next poll only returns a change. */
+  seq: number;
+  followUps: number;
+  /** Set right before a reload that should outline the sent items afterwards. */
+  showOnReload: boolean;
+  items: SentPickItem[];
+}
+
+/** What a content script in a child frame reports up to the top frame. */
+export type FrameEvent =
+  | { type: 'hello' }
+  | {
+      type: 'candidate';
+      facts: Omit<ElementSelection, 'comment' | 'source' | 'screenshot'>;
+      frameUrl: string;
+    }
+  | { type: 'hover'; label: string }
+  | { type: 'key'; key: 'Escape' | 'toggle' };
+
+/** What the top frame tells the content scripts in child frames to do. */
+export type FrameCommand =
+  | { type: 'set-picking'; picking: boolean }
+  | { type: 'read-source'; marker: string }
+  | { type: 'capturing'; active: boolean }
+  | { type: 'clear' };
 
 export interface CaptureRequest {
   box: SelectionBox;
@@ -55,13 +108,18 @@ export interface CapturedScreenshot {
 /** Work the background service worker does on behalf of a page or the popup. */
 export type BackgroundRequest =
   | { kind: 'get-targets'; url: string }
-  | { kind: 'read-source'; marker: string }
+  | { kind: 'read-source'; marker: string; frameId?: number }
   | { kind: 'capture'; request: CaptureRequest }
   | { kind: 'send'; request: SendRequest }
   | { kind: 'ensure-content'; tabId: number }
   | { kind: 'get-review-session' }
   | { kind: 'save-review-session'; session: ReviewSession }
-  | { kind: 'clear-review-session' };
+  | { kind: 'clear-review-session' }
+  | { kind: 'pick-status'; pickId: string; since: number }
+  | { kind: 'follow-up'; request: FollowUpRequest }
+  | { kind: 'install-console-hook' }
+  | { kind: 'frame-event'; event: FrameEvent }
+  | { kind: 'frame-command'; command: FrameCommand; frameId?: number };
 
 /** What each `BackgroundRequest` resolves to. */
 export interface BackgroundResults {
@@ -73,12 +131,21 @@ export interface BackgroundResults {
   'get-review-session': ReviewSession | null;
   'save-review-session': true;
   'clear-review-session': true;
+  'pick-status': PickStatusResponse;
+  'follow-up': FollowUpResponse;
+  'install-console-hook': true;
+  'frame-event': true;
+  'frame-command': true;
 }
 
 /** Messages the popup sends into a page's content script. */
 export type ContentRequest =
   | { kind: 'set-design-mode'; enabled: boolean }
-  | { kind: 'get-design-mode' };
+  | { kind: 'get-design-mode' }
+  /** Relayed from a child frame's content script to the top frame. */
+  | { kind: 'frame-candidate'; frameId: number; event: FrameEvent }
+  /** Relayed from the top frame to a child frame's content script. */
+  | { kind: 'frame-command'; command: FrameCommand };
 
 export interface DesignModeState {
   /** The review session is open: the tray is up and selections are kept. */
@@ -220,7 +287,26 @@ function isReviewSession(value: unknown): value is ReviewSession {
     typeof session.picking === 'boolean' &&
     Array.isArray(session.selections) &&
     typeof session.pageNotes === 'object' &&
-    session.pageNotes !== null
+    session.pageNotes !== null &&
+    (session.lastPick === undefined || isSentPick(session.lastPick)) &&
+    (session.consoleCapture === undefined || typeof session.consoleCapture === 'boolean') &&
+    (session.consoleErrors === undefined || Array.isArray(session.consoleErrors))
+  );
+}
+
+function isSentPick(value: unknown): value is SentPick {
+  if (typeof value !== 'object' || value === null) return false;
+  const pick = value as Partial<SentPick>;
+  return (
+    typeof pick.pickId === 'string' &&
+    typeof pick.paneId === 'string' &&
+    typeof pick.notePath === 'string' &&
+    typeof pick.sentAt === 'number' &&
+    typeof pick.status === 'string' &&
+    typeof pick.seq === 'number' &&
+    typeof pick.followUps === 'number' &&
+    typeof pick.showOnReload === 'boolean' &&
+    Array.isArray(pick.items)
   );
 }
 

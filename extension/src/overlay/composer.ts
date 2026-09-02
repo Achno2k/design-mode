@@ -1,4 +1,4 @@
-import type { SelectionBox, StyleChange, TextChange } from '../lib/protocol.ts';
+import type { ItemTriage, SelectionBox, StyleChange, TextChange } from '../lib/protocol.ts';
 import { fill, make, placeNear } from './dom.ts';
 import { CHECK_ICON, SLIDERS_ICON } from './icons.ts';
 import { createStyleEditor, type CommittedStyleEdits } from './style-editor.ts';
@@ -9,6 +9,13 @@ export interface Draft {
   styleChanges: StyleChange[];
   textChange?: TextChange;
   styleEffect?: CommittedStyleEdits;
+  triage?: ItemTriage;
+}
+
+/** What the composer starts with when it reopens on an existing item. */
+export interface ComposerInitial {
+  comment?: string;
+  triage?: ItemTriage;
 }
 
 /** What the composer is pointed at, split so the tag can be coloured apart. */
@@ -26,6 +33,7 @@ export interface Composer {
     label: ElementLabel,
     onSubmit: (draft: Draft) => void,
     onDismiss: () => void,
+    initial?: ComposerInitial,
   ): void;
   /** Open a comment-only composer beside a freehand drawing. */
   openAt(
@@ -33,6 +41,7 @@ export interface Composer {
     label: ElementLabel,
     onSubmit: (draft: Draft) => void,
     onDismiss: () => void,
+    initial?: ComposerInitial,
   ): void;
   close(): void;
   isOpen(): boolean;
@@ -88,6 +97,7 @@ export function createComposer(layer: HTMLElement, options: ComposerOptions): Co
   let editorAttached = false;
   let onSubmit: ((draft: Draft) => void) | null = null;
   let onDismiss: (() => void) | null = null;
+  let triage: ItemTriage | undefined;
 
   function close(): void {
     const dismissed = onDismiss;
@@ -127,6 +137,7 @@ export function createComposer(layer: HTMLElement, options: ComposerOptions): Co
       styleChanges,
       ...(textChange === undefined ? {} : { textChange }),
       ...(committed === null || !hasEdits ? {} : { styleEffect: committed }),
+      ...(triage === undefined ? {} : { triage }),
     });
   }
 
@@ -142,6 +153,7 @@ export function createComposer(layer: HTMLElement, options: ComposerOptions): Co
     editorAttached = false;
     onSubmit = null;
     onDismiss = null;
+    triage = undefined;
     updateSubmit();
   }
 
@@ -218,8 +230,10 @@ export function createComposer(layer: HTMLElement, options: ComposerOptions): Co
     editorPanel.addEventListener(type, suppressHostKeyEvent);
   }
 
-  function openPanel(next: ElementLabel): void {
+  function openPanel(next: ElementLabel, initial?: ComposerInitial): void {
     showLabel(next);
+    input.value = initial?.comment ?? '';
+    triage = initial?.triage;
     panel.removeAttribute('hidden');
     resize();
     updateSubmit();
@@ -228,16 +242,16 @@ export function createComposer(layer: HTMLElement, options: ComposerOptions): Co
   }
 
   return {
-    open(element, next, handler, dismissed) {
+    open(element, next, handler, dismissed, initial) {
       anchor = element;
       target = element;
       editorAttached = false;
       onSubmit = handler;
       onDismiss = dismissed;
       expand.hidden = false;
-      openPanel(next);
+      openPanel(next, initial);
     },
-    openAt(box, next, handler, dismissed) {
+    openAt(box, next, handler, dismissed, initial) {
       editor.reset();
       anchor = { ...box };
       target = null;
@@ -246,7 +260,7 @@ export function createComposer(layer: HTMLElement, options: ComposerOptions): Co
       onDismiss = dismissed;
       expand.hidden = true;
       editorPanel.hidden = true;
-      openPanel(next);
+      openPanel(next, initial);
     },
     close,
     isOpen: () => !panel.hasAttribute('hidden'),

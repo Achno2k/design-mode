@@ -1,5 +1,5 @@
-import { askBackground, type ReviewSession } from '../lib/messaging.ts';
-import type { ReviewPageNote, Selection } from '../lib/protocol.ts';
+import { askBackground, type ReviewSession, type SentPick } from '../lib/messaging.ts';
+import type { ConsoleEntry, ReviewPageNote, Selection } from '../lib/protocol.ts';
 
 const SAVE_DELAY_MS = 100;
 
@@ -12,6 +12,13 @@ export interface ReviewSessionState {
   pageNotes(): ReviewPageNote[];
   clearContent(picking: boolean): void;
   end(): void;
+  /** The last review sent from this tab, followed until it is done or replaced. */
+  lastPick(): SentPick | null;
+  setLastPick(pick: SentPick | null, picking: boolean): void;
+  isConsoleCapture(): boolean;
+  setConsoleCapture(on: boolean, picking: boolean): void;
+  consoleErrors(): ConsoleEntry[];
+  setConsoleErrors(entries: ConsoleEntry[], picking: boolean): void;
 }
 
 export function createReviewSessionState(
@@ -20,12 +27,18 @@ export function createReviewSessionState(
   onError: (message: string) => void,
 ): ReviewSessionState {
   let notes: Record<string, string> = {};
+  let sentPick: SentPick | null = null;
+  let consoleCapture = false;
+  let consoleEntries: ConsoleEntry[] = [];
   let saveTimer: number | null = null;
   let hasReportedError = false;
 
   function restore(stored: ReviewSession): string {
     selections.splice(0, selections.length, ...stored.selections);
     notes = { ...stored.pageNotes };
+    sentPick = stored.lastPick ?? null;
+    consoleCapture = stored.consoleCapture ?? false;
+    consoleEntries = [...(stored.consoleErrors ?? [])];
     return notes[currentUrl()] ?? '';
   }
 
@@ -46,7 +59,15 @@ export function createReviewSessionState(
   async function write(picking: boolean): Promise<void> {
     const answer = await askBackground({
       kind: 'save-review-session',
-      session: { open: true, picking, selections: selections.map(withoutInlineImage), pageNotes: notes },
+      session: {
+        open: true,
+        picking,
+        selections: selections.map(withoutInlineImage),
+        pageNotes: notes,
+        ...(sentPick === null ? {} : { lastPick: sentPick }),
+        consoleCapture,
+        consoleErrors: consoleEntries,
+      },
     });
     if (!answer.ok && !hasReportedError) {
       hasReportedError = true;
@@ -71,6 +92,7 @@ export function createReviewSessionState(
   function clearContent(picking: boolean): void {
     selections.length = 0;
     notes = {};
+    consoleEntries = [];
     save(picking);
   }
 
@@ -80,7 +102,30 @@ export function createReviewSessionState(
     void askBackground({ kind: 'clear-review-session' });
   }
 
-  return { restore, save, setPageNote, pageNote, pageNotes, clearContent, end };
+  return {
+    restore,
+    save,
+    setPageNote,
+    pageNote,
+    pageNotes,
+    clearContent,
+    end,
+    lastPick: () => sentPick,
+    setLastPick(pick, picking) {
+      sentPick = pick;
+      save(picking);
+    },
+    isConsoleCapture: () => consoleCapture,
+    setConsoleCapture(on, picking) {
+      consoleCapture = on;
+      save(picking);
+    },
+    consoleErrors: () => consoleEntries,
+    setConsoleErrors(entries, picking) {
+      consoleEntries = entries;
+      saveAfterTyping(picking);
+    },
+  };
 }
 
 /** Inline fallback images must never consume Chrome's small session-storage quota. */

@@ -5,7 +5,7 @@ import { log } from '../logger.ts';
 import { err, ok, type Result } from '../result.ts';
 
 const MAX_JSON_BYTES = 32 * 1024 * 1024;
-const PROTECTED_PATHS = new Set(['/targets', '/send', '/blob']);
+const PROTECTED_PATHS = new Set(['/targets', '/send', '/blob', '/pick', '/pick/follow-up']);
 const PAIRING_ERROR =
   'This extension is not paired with the daemon. Open the popup and paste the pairing code from the daemon\'s pane.';
 

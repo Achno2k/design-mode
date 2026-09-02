@@ -27,3 +27,5 @@ export const CHEVRON_ICON = WRAP('<path d="M6 9l6 6 6-6"/>');
 
 /** Arrow rising out of the bar — the send affordance. */
 export const ARROW_UP_ICON = WRAP('<path d="M12 19V5"/><path d="M5.5 11.5L12 5l6.5 6.5"/>');
+
+export const CONSOLE_ICON = WRAP('<path d="M4 17l6-5-6-5"/><path d="M12 19h8"/>');

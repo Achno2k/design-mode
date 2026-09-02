@@ -1,21 +1,20 @@
-import { askBackground, isContextAlive, type ReviewSession } from '../lib/messaging.ts';
+import { askBackground, isContextAlive, type ReviewSession, type SentPick } from '../lib/messaging.ts';
 import type { Selection } from '../lib/protocol.ts';
-import { describeElement, describeHover, describeParts, measure, readSource } from './collect.ts';
-import {
-  captureNotice,
-  captureWithoutOverlay,
-  includeCaptureReason,
-  resolveCapture,
-} from './capture-result.ts';
-import { describeAdded, isAnnotateShortcut, lowerFirst, pageElementAt } from './controller-input.ts';
+import { captureNotice, captureWithoutOverlay, includeCaptureReason, resolveCapture } from './capture-result.ts';
+import { describeElement, describeParts } from './collect.ts';
 import { createComposer, type Draft } from './composer.ts';
+import { describeAdded, lowerFirst } from './controller-input.ts';
+import { createKeyHandler } from './controller-keys.ts';
 import { createDrawing } from './drawing.ts';
+import { captureElementSelection } from './element-capture.ts';
 import { createHighlight } from './highlight.ts';
-import { createReviewSessionState, type ReviewSessionState } from './review-session.ts';
+import { createPickInput } from './pick-input.ts';
+import { createReviewSessionState } from './review-session.ts';
 import { createRouteWatcher } from './route-watcher.ts';
-import { toAnnotationItem, toDrawingSelection, toElementSelection } from './selection-shapes.ts';
+import { createSelectionOps } from './selection-ops.ts';
+import { toDrawingSelection } from './selection-shapes.ts';
+import { createSendFlow } from './send-flow.ts';
 import { createStyleEffects } from './style-effects.ts';
-import { confirmTargetReady } from './target-readiness.ts';
 import { createTargetWatcher } from './target-watcher.ts';
 import { createTray } from './tray.ts';
 
@@ -41,6 +40,10 @@ export interface Controller {
  * Element picking and freehand drawing are mutually exclusive input modes. Both
  * can be left without ending the session, so the page can be used normally while
  * completed selections remain available to send.
+ *
+ * The pieces are wired here and live elsewhere: `pick-input` for the pointer,
+ * `controller-keys` for the keyboard, `selection-ops` for the queued list, and
+ * `send-flow` for delivery.
  */
 export function createController(layer: HTMLElement, host: Element): Controller {
   const highlight = createHighlight(layer, host);
@@ -51,35 +54,56 @@ export function createController(layer: HTMLElement, host: Element): Controller 
   const styleEffects = createStyleEffects();
   let open = false;
   let picking = false;
-  let confirmedWorkingPaneId: string | null = null;
-  let sending = false;
   let composingDrawing = false;
   let drawingGeneration = 0;
   let captureGeneration = 0;
   let targetRequestGeneration = 0;
-  let reviewSession: ReviewSessionState;
+
   const tray = createTray(layer, {
-    onSend: send,
+    onSend: () => void sendFlow.send(),
     onRefresh: () => {
-      confirmedWorkingPaneId = null;
+      sendFlow.invalidate();
       void loadTargets('Refreshing targets…');
     },
-    onTargetChange: () => {
-      confirmedWorkingPaneId = null;
-    },
+    onTargetChange: () => sendFlow.invalidate(),
     onPageNoteChange: (note) => reviewSession.setPageNote(window.location.href, note, picking),
     onClear: clearAll,
-    onRemoveSelection: removeSelection,
+    onRemoveSelection: (index) => selectionOps.remove(index),
+    onEditSelection: (index) => selectionOps.edit(index),
+    onReselect: (index) => selectionOps.reselect(index),
+    onMoveSelection: (index, direction) => selectionOps.move(index, direction),
+    onSetTriage: (index, triage) => selectionOps.setTriage(index, triage),
     onToggleAnnotate: () => setPicking(!picking),
     onToggleDraw: toggleDrawing,
+    onToggleConsole: notYet,
+    onReloadAndShow: notYet,
+    onReply: notYet,
   });
-  reviewSession = createReviewSessionState(selections, () => window.location.href, (message) =>
+  const reviewSession = createReviewSessionState(selections, () => window.location.href, (message) =>
     tray.setStatus(message, 'error'),
   );
+  const selectionOps = createSelectionOps({
+    selections,
+    styleEffects,
+    reviewSession,
+    tray,
+    isPicking: () => picking,
+    onChanged: () => sendFlow.invalidate(),
+  });
+  const sendFlow = createSendFlow({
+    tray,
+    reviewSession,
+    selections,
+    currentUrl: () => window.location.href,
+    loadTargets,
+    onSent,
+  });
   const drawing = createDrawing(layer, {
     onModeChange: (active) => tray.setDrawing(active),
     onCancelRequested: finishDrawing,
   });
+  const pickInput = createPickInput({ host, highlight, composer, onPick: openComposerFor });
+  const onKeyDown = createKeyHandler({ composer, isPicking: () => picking, setPicking });
   const targetWatcher = createTargetWatcher(() => window.location.href, (targets, message) =>
     tray.setTargets(targets, message),
   );
@@ -98,7 +122,8 @@ export function createController(layer: HTMLElement, host: Element): Controller 
   async function resume(stored: ReviewSession): Promise<void> {
     if (open) return;
     tray.setPageNote(reviewSession.restore(stored));
-    showSelections();
+    selectionOps.show();
+    showLastPick();
     openSession(stored.picking);
     await loadTargets();
     if (open) targetWatcher.start();
@@ -120,9 +145,10 @@ export function createController(layer: HTMLElement, host: Element): Controller 
     reviewSession.end();
     styleEffects.clear();
     selections.length = 0;
-    confirmedWorkingPaneId = null;
-    showSelections();
+    sendFlow.invalidate();
+    selectionOps.show();
     tray.clearPageNote();
+    tray.setPickStatus(null);
     tray.hide();
   }
 
@@ -155,10 +181,8 @@ export function createController(layer: HTMLElement, host: Element): Controller 
     if (picking === next) return;
     picking = next;
 
-    for (const [type, handler] of pickingListeners) {
-      if (next) window.addEventListener(type, handler as EventListener, true);
-      else window.removeEventListener(type, handler as EventListener, true);
-    }
+    if (next) pickInput.attach();
+    else pickInput.detach();
 
     if (!next) {
       highlight.hide();
@@ -252,60 +276,15 @@ export function createController(layer: HTMLElement, host: Element): Controller 
     }
   }
 
-  function onPointerMove(event: PointerEvent): void {
-    if (composer.isOpen()) return;
-
-    const element = pageElementAt(event, host);
-    if (element === null) {
-      highlight.hide();
-      return;
-    }
-    highlight.show(element, describeHover(element));
-  }
-
-  function onClick(event: MouseEvent): void {
-    const element = pageElementAt(event, host);
-    if (element === null) return;
-
-    // The page must not act on this click — it was aimed at design mode.
-    event.preventDefault();
-    event.stopPropagation();
-
-    if (composer.isOpen()) {
-      composer.close();
-      return;
-    }
-
-    // Stays outlined while its comment is written, but with no child boxes.
-    highlight.pin(element, describeHover(element));
+  function openComposerFor(element: Element): void {
     const parts = describeParts(describeElement(element));
-    const dismiss = (): void => highlight.hide();
-    composer.open(element, parts, (draft) => void addSelection(element, draft), dismiss);
-  }
-
-  /**
-   * Escape steps back one level at a time: close the composer, then leave
-   * picking, and never further. Closing the session is an explicit action, so a
-   * stray keypress cannot discard a review.
-   */
-  function onKeyDown(event: KeyboardEvent): void {
-    if (isAnnotateShortcut(event)) {
-      event.preventDefault();
-      setPicking(!picking);
-      return;
-    }
-
-    if (event.key !== 'Escape') return;
-
-    if (composer.isOpen()) {
-      event.preventDefault();
-      composer.close();
-      return;
-    }
-    if (picking) {
-      event.preventDefault();
-      setPicking(false);
-    }
+    composer.open(
+      element,
+      parts,
+      (draft) => void addSelection(element, draft),
+      () => highlight.hide(),
+      selectionOps.pendingInitial(),
+    );
   }
 
   async function addSelection(element: Element, draft: Draft): Promise<void> {
@@ -313,31 +292,17 @@ export function createController(layer: HTMLElement, host: Element): Controller 
     const generation = captureGeneration;
     tray.setStatus('Reading the component…', 'busy');
 
-    const source = await readSource(element);
-    // Re-measure in case the page moved while source information was loading.
-    const capture = resolveCapture(await captureWithoutOverlay(layer, measure(element)));
+    const captured = await captureElementSelection(layer, element, draft, window.location.href);
     if (generation !== captureGeneration) {
       draft.styleEffect?.revert();
       return;
     }
 
-    confirmedWorkingPaneId = null;
-    const selection: Selection = toElementSelection(
-      describeElement(element),
-      draft,
-      includeCaptureReason(draft.comment, capture),
-      window.location.href,
-      source,
-      capture,
-    );
-    selections.push(selection);
-    styleEffects.add(selection, draft.styleEffect);
-    showSelections();
-    reviewSession.save(picking);
+    selectionOps.add(captured.selection, draft.styleEffect);
 
-    const notice = captureNotice(capture);
+    const notice = captureNotice(captured.capture);
     tray.setStatus(
-      notice === undefined ? describeAdded(draft, source !== undefined) : `Added, but ${lowerFirst(notice)}`,
+      notice === undefined ? describeAdded(draft, captured.hasSource) : `Added, but ${lowerFirst(notice)}`,
       notice === undefined ? 'idle' : 'busy',
     );
   }
@@ -358,13 +323,10 @@ export function createController(layer: HTMLElement, host: Element): Controller 
     if (generation !== drawingGeneration) return;
     const committed = drawing.commit() ?? pending;
 
-    confirmedWorkingPaneId = null;
-    selections.push({
+    selectionOps.add({
       ...toDrawingSelection(committed, includeCaptureReason(draft.comment, capture), capture),
       pageUrl: window.location.href,
     });
-    showSelections();
-    reviewSession.save(picking);
 
     const notice = captureNotice(capture);
     tray.setStatus(
@@ -376,97 +338,29 @@ export function createController(layer: HTMLElement, host: Element): Controller 
   function clearAll(): void {
     captureGeneration += 1;
     cancelDrawingDraft();
-    styleEffects.clear();
-    reviewSession.clearContent(picking);
-    confirmedWorkingPaneId = null;
-    showSelections();
+    selectionOps.clear();
     tray.clearPageNote();
     tray.setStatus('', 'idle');
   }
 
-  /** Drop one annotation from the review without touching the rest. */
-  function removeSelection(index: number): void {
-    if (index < 0 || index >= selections.length) return;
-
-    const selection = selections[index];
-    if (selection === undefined) return;
-    styleEffects.remove(selection);
-    selections.splice(index, 1);
-    confirmedWorkingPaneId = null;
-    showSelections();
-    reviewSession.save(picking);
-    tray.setStatus(selections.length === 0 ? '' : 'Annotation removed.', 'idle');
+  function onSent(pick: SentPick): void {
+    clearAll();
+    reviewSession.setLastPick(pick, picking);
+    showLastPick();
+    tray.setStatus(`Sent to ${pick.paneId}.`, 'success');
+    void targetWatcher.refresh();
   }
 
-  function showSelections(): void {
-    tray.setSelections(selections.map(toAnnotationItem));
+  function showLastPick(): void {
+    const pick = reviewSession.lastPick();
+    tray.setPickStatus(
+      pick === null ? null : { paneId: pick.paneId, status: pick.status, followUps: pick.followUps },
+    );
   }
 
-  async function send(): Promise<void> {
-    if (sending || !hasSendableContent()) return;
-
-    const requestedPaneId = tray.selectedPaneId();
-    if (requestedPaneId === null) return;
-
-    sending = true;
-    try {
-      const refreshed = await loadTargets('Refreshing targets before send…');
-      if (!refreshed) return;
-
-      const target = tray.selectedTarget();
-      if (target === null || target.paneId !== requestedPaneId) {
-        confirmedWorkingPaneId = null;
-        tray.setStatus('That target is no longer available — choose another.', 'error');
-        return;
-      }
-      if (
-        !confirmTargetReady(
-          target,
-          confirmedWorkingPaneId,
-          (paneId) => (confirmedWorkingPaneId = paneId),
-          (message, tone) => tray.setStatus(message, tone),
-        )
-      ) {
-        return;
-      }
-
-      if (!hasSendableContent()) {
-        tray.setStatus('Nothing to send.', 'idle');
-        return;
-      }
-      tray.setStatus(target.status === 'unknown' ? 'Status unknown — sending anyway…' : 'Sending…', 'busy');
-
-      const answer = await askBackground({
-        kind: 'send',
-        request: {
-          url: window.location.href,
-          paneId: target.paneId,
-          pageNotes: reviewSession.pageNotes(),
-          selections,
-        },
-      });
-
-      if (!answer.ok) {
-        tray.setStatus(answer.error, 'error');
-        return;
-      }
-
-      clearAll();
-      tray.setStatus(`Sent to ${answer.value.paneId}.`, 'success');
-      void targetWatcher.refresh();
-    } finally {
-      sending = false;
-    }
+  function notYet(): void {
+    tray.setStatus('Not available yet.', 'idle');
   }
-
-  function hasSendableContent(): boolean {
-    return selections.length > 0 || reviewSession.pageNotes().length > 0;
-  }
-
-  const pickingListeners: [keyof WindowEventMap, (event: never) => void][] = [
-    ['pointermove', onPointerMove],
-    ['click', onClick],
-  ];
 
   return {
     start,

@@ -42,7 +42,7 @@ export async function writePick(
     const notePath = join(directory, 'note.md');
     await writeFile(
       notePath,
-      renderNote(request.url, rendered.value, request.pageNote, request.pageNotes),
+      renderNote(request.url, rendered.value, request.pageNote, request.pageNotes, request.consoleErrors),
       { encoding: 'utf8', mode: 0o600 },
     );
     await chmod(notePath, 0o600);

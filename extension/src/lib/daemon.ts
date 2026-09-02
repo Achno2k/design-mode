@@ -26,7 +26,7 @@ export async function fetchTargets(pageUrl: string): Promise<Answer<TargetsRespo
 
 /** Deliver a review to the chosen agent. */
 export async function postSend(body: SendRequest): Promise<Answer<SendResponse>> {
-  return request<SendResponse>(
+  return daemonRequest<SendResponse>(
     '/send',
     {
       method: 'POST',
@@ -42,7 +42,7 @@ export async function postBlob(base64Png: string): Promise<Answer<BlobResponse>>
   const bytes = decodeBase64(base64Png);
   if (!bytes.ok) return bytes;
 
-  const answer = await request<BlobResponse>(
+  const answer = await daemonRequest<BlobResponse>(
     '/blob',
     {
       method: 'POST',
@@ -59,13 +59,13 @@ export async function postBlob(base64Png: string): Promise<Answer<BlobResponse>>
 
 /** Read and validate the open health endpoint. */
 export async function checkHealth(): Promise<Answer<HealthResponse>> {
-  const answer = await request<HealthResponse>('/health');
+  const answer = await daemonRequest<HealthResponse>('/health');
   if (!answer.ok) return answer;
 
   const health = answer.value;
   if (
     health.ok !== true ||
-    health.protocol !== 2 ||
+    health.protocol !== 3 ||
     typeof health.tokenHint !== 'string' ||
     !/^[a-f0-9]{4}$/.test(health.tokenHint)
   ) {
@@ -117,7 +117,7 @@ async function authenticatedTargets(
   token?: string,
 ): Promise<Answer<TargetsResponse>> {
   const query = new URLSearchParams({ url: pageUrl });
-  return request<TargetsResponse>(
+  return daemonRequest<TargetsResponse>(
     `/targets?${query.toString()}`,
     { cache: 'no-store' },
     { requiresAuth: true, token },
@@ -140,7 +140,8 @@ interface RequestOptions {
   timeoutMs?: number;
 }
 
-async function request<T>(
+/** Call the daemon: bearer token when required, timeout, and readable failures. */
+export async function daemonRequest<T>(
   path: string,
   init: RequestInit = {},
   options: RequestOptions = {},

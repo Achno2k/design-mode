@@ -3,12 +3,20 @@ import {
   readPanelPosition,
   writePanelPosition,
 } from '../lib/panel-position.ts';
-import type { Target } from '../lib/protocol.ts';
+import type { ItemTriage, Target } from '../lib/protocol.ts';
 import { createAgentPicker } from './agent-picker.ts';
 import { createAnnotationStack, type AnnotationItem } from './annotations.ts';
 import { fill, make } from './dom.ts';
 import { makeDraggable } from './draggable.ts';
-import { ANNOTATE_ICON, ARROW_UP_ICON, CHEVRON_ICON, PEN_ICON, REFRESH_ICON } from './icons.ts';
+import {
+  ANNOTATE_ICON,
+  ARROW_UP_ICON,
+  CHEVRON_ICON,
+  CONSOLE_ICON,
+  PEN_ICON,
+  REFRESH_ICON,
+} from './icons.ts';
+import { createPickRow, type PickStatusView } from './tray-pick-row.ts';
 
 /** Tone of the tray's status line. */
 export type StatusTone = 'idle' | 'busy' | 'error' | 'success';
@@ -24,6 +32,10 @@ export interface Tray {
   setAnnotating(active: boolean): void;
   /** Reflect whether freehand drawing is currently on. */
   setDrawing(active: boolean): void;
+  /** Follow the review that was last sent, or hide the row with `null`. */
+  setPickStatus(view: PickStatusView | null): void;
+  /** Reflect whether console errors are being collected, and how many so far. */
+  setConsoleCapture(on: boolean, count: number): void;
   /** Screen space along the bottom that other panels should keep clear of. */
   reservedBottom(): number;
   selectedPaneId(): string | null;
@@ -45,8 +57,15 @@ export interface TrayHandlers {
   onPageNoteChange(value: string): void;
   onClear(): void;
   onRemoveSelection(index: number): void;
+  onEditSelection(index: number): void;
+  onReselect(index: number): void;
+  onMoveSelection(index: number, direction: -1 | 1): void;
+  onSetTriage(index: number, triage: ItemTriage): void;
   onToggleAnnotate(): void;
   onToggleDraw(): void;
+  onToggleConsole(): void;
+  onReloadAndShow(): void;
+  onReply(): void;
 }
 
 /**
@@ -73,7 +92,17 @@ export function createTray(layer: HTMLElement, handlers: TrayHandlers): Tray {
     updateSendDisabled();
   });
 
-  const stack = createAnnotationStack((index) => handlers.onRemoveSelection(index));
+  const stack = createAnnotationStack({
+    onRemove: (index) => handlers.onRemoveSelection(index),
+    onEdit: (index) => handlers.onEditSelection(index),
+    onReselect: (index) => handlers.onReselect(index),
+    onMove: (index, direction) => handlers.onMoveSelection(index, direction),
+    onSetTriage: (index, triage) => handlers.onSetTriage(index, triage),
+  });
+  const pickRow = createPickRow({
+    onReloadAndShow: () => handlers.onReloadAndShow(),
+    onReply: () => handlers.onReply(),
+  });
 
   const collapse = iconButton(
     'circle circle--sm tray__collapse',
@@ -97,6 +126,10 @@ export function createTray(layer: HTMLElement, handlers: TrayHandlers): Tray {
   const pen = iconButton('circle tray__tool', PEN_ICON, 'Draw on page');
   const penTip = make('span', { className: 'tip', text: 'Draw on page' });
   const penSlot = fill(make('div', { className: 'tip-anchor' }), penTip, pen);
+
+  const consoleButton = iconButton('circle tray__tool', CONSOLE_ICON, 'Capture console errors');
+  const consoleTip = make('span', { className: 'tip', text: 'Capture console errors' });
+  const consoleSlot = fill(make('div', { className: 'tip-anchor' }), consoleTip, consoleButton);
 
   const queueCount = make('span', { text: '0 annotations' });
   const queue = fill(
@@ -126,11 +159,13 @@ export function createTray(layer: HTMLElement, handlers: TrayHandlers): Tray {
     make('div', { className: 'panel tray', attributes: { hidden: '' } }),
     stack.element(),
     head,
+    pickRow.element,
     note,
     fill(
       make('div', { className: 'tray__actions' }),
       annotateSlot,
       penSlot,
+      consoleSlot,
       queue,
       status,
       clear,
@@ -165,6 +200,7 @@ export function createTray(layer: HTMLElement, handlers: TrayHandlers): Tray {
   refresh.addEventListener('click', () => handlers.onRefresh());
   annotate.addEventListener('click', () => handlers.onToggleAnnotate());
   pen.addEventListener('click', () => handlers.onToggleDraw());
+  consoleButton.addEventListener('click', () => handlers.onToggleConsole());
   clear.addEventListener('click', () => handlers.onClear());
   send.addEventListener('click', () => handlers.onSend());
   note.addEventListener('input', () => {
@@ -287,6 +323,17 @@ export function createTray(layer: HTMLElement, handlers: TrayHandlers): Tray {
     setDrawing(active) {
       drawing = active;
       updateMode();
+    },
+
+    setPickStatus(view) {
+      pickRow.set(view);
+    },
+
+    setConsoleCapture(on, count) {
+      consoleButton.classList.toggle('circle--on', on);
+      consoleTip.textContent = on
+        ? `Console errors on · ${count} so far`
+        : 'Capture console errors';
     },
 
     // Once dragged, the bar is wherever the user put it, so nothing along the
