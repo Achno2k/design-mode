@@ -16,6 +16,11 @@ export interface Row {
   value(): string;
   setValue(value: string): void;
   onInput(handler: (value: string) => void): void;
+  /**
+   * Fires with `true` when the row gains the user's attention, by focus or by
+   * the pointer resting on it, and `false` once both have left.
+   */
+  onFocusChange(handler: (active: boolean) => void): void;
 }
 
 /** A row bound to a CSS property. */
@@ -23,11 +28,55 @@ export interface StyleRow extends Row {
   property: EditableProperty;
 }
 
+/** A control on its own, before the row wraps it in a line and tracks attention. */
+type Control = Omit<Row, 'onFocusChange'>;
+
 /** Build the row for one editable CSS property. */
 export function createStyleRow(property: EditableProperty): StyleRow {
   const control = property.kind === 'color' ? colorControl() : plainControl(property);
   // `control` also carries an `element`; the row's line must win over it.
-  return { ...control, property, element: line(property.label, control.element) };
+  const element = line(property.label, control.element);
+  return { ...control, property, element, onFocusChange: trackAttention(element) };
+}
+
+/**
+ * Focus and hover are tracked together: the editor shows the same guidance for
+ * a row being typed into and a row being looked at, and it must not flicker
+ * off when the pointer leaves a field that still has the caret.
+ */
+function trackAttention(element: HTMLElement): Row['onFocusChange'] {
+  let notify: (active: boolean) => void = () => {};
+  let focused = false;
+  let hovered = false;
+  let active = false;
+
+  function update(): void {
+    const next = focused || hovered;
+    if (next === active) return;
+    active = next;
+    notify(active);
+  }
+
+  element.addEventListener('focusin', () => {
+    focused = true;
+    update();
+  });
+  element.addEventListener('focusout', () => {
+    focused = false;
+    update();
+  });
+  element.addEventListener('mouseenter', () => {
+    hovered = true;
+    update();
+  });
+  element.addEventListener('mouseleave', () => {
+    hovered = false;
+    update();
+  });
+
+  return (handler) => {
+    notify = handler;
+  };
 }
 
 /**
@@ -46,8 +95,9 @@ export function createTextRow(): Row {
   let notify: (value: string) => void = () => {};
   input.addEventListener('input', () => notify(input.value));
 
+  const element = line('Text', control);
   return {
-    element: line('Text', control),
+    element,
     value: () => input.value,
     setValue(value: string) {
       input.value = value;
@@ -55,6 +105,7 @@ export function createTextRow(): Row {
     onInput(handler: (value: string) => void) {
       notify = handler;
     },
+    onFocusChange: trackAttention(element),
   };
 }
 
@@ -67,7 +118,7 @@ function line(label: string, control: HTMLElement): HTMLElement {
 }
 
 /** A hex swatch beside the real value, so any CSS colour syntax still works. */
-function colorControl(): Row {
+function colorControl(): Control {
   const swatch = make('input', { className: 'swatch', attributes: { type: 'color' } });
   const text = make('input', { className: 'field', attributes: { type: 'text' } });
   const element = fill(make('div', { className: 'control control--color' }), swatch, text);
@@ -96,11 +147,11 @@ function colorControl(): Row {
   };
 }
 
-function plainControl(property: EditableProperty): Row {
+function plainControl(property: EditableProperty): Control {
   return property.kind === 'choice' ? choiceControl(property) : inputControl(property);
 }
 
-function choiceControl(property: EditableProperty): Row {
+function choiceControl(property: EditableProperty): Control {
   const select = make('select', { className: 'field field--select' });
   fill(
     select,
@@ -147,7 +198,7 @@ function choiceControl(property: EditableProperty): Row {
   };
 }
 
-function inputControl(property: EditableProperty): Row {
+function inputControl(property: EditableProperty): Control {
   const input = make('input', {
     className: 'field',
     attributes:

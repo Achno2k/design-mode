@@ -1,4 +1,5 @@
 import type { ItemTriage, SelectionBox, StyleChange, TextChange } from '../lib/protocol.ts';
+import { createBoxModel } from './box-model.ts';
 import { fill, make, placeNear } from './dom.ts';
 import { CHECK_ICON, SLIDERS_ICON } from './icons.ts';
 import { createStyleEditor, type CommittedStyleEdits } from './style-editor.ts';
@@ -61,7 +62,8 @@ export interface ComposerOptions {
  * reverts every live edit.
  */
 export function createComposer(layer: HTMLElement, options: ComposerOptions): Composer {
-  const editor = createStyleEditor({ onChange: () => updateSubmit() });
+  // Bands are appended before the panel so the composer always paints over them.
+  const editor = createStyleEditor({ onChange: () => updateSubmit(), boxModel: createBoxModel(layer) });
 
   const input = make('textarea', {
     className: 'composer__input',
