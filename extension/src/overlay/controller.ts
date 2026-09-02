@@ -3,6 +3,7 @@ import type { Selection } from '../lib/protocol.ts';
 import { captureNotice, captureWithoutOverlay, includeCaptureReason, resolveCapture } from './capture-result.ts';
 import { describeElement, describeParts } from './collect.ts';
 import { createComposer, type Draft } from './composer.ts';
+import { createConsoleCapture } from './console-capture.ts';
 import { describeAdded, lowerFirst } from './controller-input.ts';
 import { createKeyHandler } from './controller-keys.ts';
 import { createDrawing } from './drawing.ts';
@@ -75,13 +76,18 @@ export function createController(layer: HTMLElement, host: Element): Controller 
     onSetTriage: (index, triage) => selectionOps.setTriage(index, triage),
     onToggleAnnotate: () => setPicking(!picking),
     onToggleDraw: toggleDrawing,
-    onToggleConsole: notYet,
+    onToggleConsole: () => void consoleCapture.toggle(),
     onReloadAndShow: notYet,
     onReply: notYet,
   });
   const reviewSession = createReviewSessionState(selections, () => window.location.href, (message) =>
     tray.setStatus(message, 'error'),
   );
+  const consoleCapture = createConsoleCapture({
+    tray,
+    reviewSession,
+    isPicking: () => picking,
+  });
   const selectionOps = createSelectionOps({
     selections,
     styleEffects,
@@ -127,6 +133,9 @@ export function createController(layer: HTMLElement, host: Element): Controller 
     openSession(stored.picking);
     await loadTargets();
     if (open) targetWatcher.start();
+    // Last, so a page that refuses the hook can report it without the target
+    // lookup writing over the message.
+    if (open) await consoleCapture.restore();
   }
 
   function openSession(shouldPick: boolean): void {
@@ -140,6 +149,8 @@ export function createController(layer: HTMLElement, host: Element): Controller 
   function stop(): void {
     if (!open) return;
 
+    // Before the session is ended: this still writes, and `end()` clears.
+    consoleCapture.end();
     releasePage();
     open = false;
     reviewSession.end();
@@ -153,6 +164,7 @@ export function createController(layer: HTMLElement, host: Element): Controller 
   }
 
   function destroy(): void {
+    consoleCapture.detach();
     releasePage();
     styleEffects.clear();
     open = false;
@@ -339,6 +351,9 @@ export function createController(layer: HTMLElement, host: Element): Controller 
     captureGeneration += 1;
     cancelDrawingDraft();
     selectionOps.clear();
+    // The toggle survives a clear: the user asked to watch the console, not to
+    // watch it until they tidied up.
+    consoleCapture.clear();
     tray.clearPageNote();
     tray.setStatus('', 'idle');
   }
