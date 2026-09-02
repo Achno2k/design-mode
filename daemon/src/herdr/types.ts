@@ -27,6 +27,12 @@ export interface HerdrAgent {
   state_change_seq: number;
   /** Terminal title with herdr's status glyph removed — human readable. */
   terminal_title_stripped?: string;
+  /**
+   * Identity of the agent process in the pane. A pane id outlives the agent
+   * that was in it, so this is what says "still the same session" after a
+   * review was sent there.
+   */
+  agent_session?: { kind: string; value: string };
 }
 
 /** An agent the extension may send a review to, flattened for the popup. */

@@ -6,6 +6,8 @@ export interface PickStatusView {
   paneId: string;
   status: PickStatus;
   followUps: number;
+  /** Elements that could be outlined again after a reload; drawings do not count. */
+  itemCount?: number;
 }
 
 export interface PickRow {
@@ -22,13 +24,34 @@ export interface PickRowHandlers {
 /**
  * The line under the agent picker that follows a sent review.
  *
- * Renders a status dot and a sentence for now; the actions arrive with the
- * feedback loop, which is also what will start feeding it real status.
+ * A status dot and a sentence, plus the two things worth doing about it:
+ * reloading to see what the agent changed, with the sent elements outlined,
+ * and replying without starting a new review. Reply is hidden once the pane
+ * has lost its agent, since the daemon would refuse it anyway.
  */
-export function createPickRow(_handlers: PickRowHandlers): PickRow {
+export function createPickRow(handlers: PickRowHandlers): PickRow {
   const dot = make('span', { className: 'dot dot--idle' });
   const text = make('span', { className: 'pick-row__text' });
-  const element = fill(make('div', { className: 'pick-row', attributes: { hidden: '' } }), dot, text);
+  const reload = make('button', {
+    className: 'pill pick-row__action',
+    text: 'Reload and show',
+    attributes: { type: 'button', title: 'Reload the page and outline the elements you sent' },
+  });
+  const reply = make('button', {
+    className: 'pill pick-row__action',
+    text: 'Reply',
+    attributes: { type: 'button', title: 'Add a follow-up to this review' },
+  });
+  const actions = fill(make('span', { className: 'pick-row__actions' }), reload, reply);
+  const element = fill(
+    make('div', { className: 'pick-row', attributes: { hidden: '' } }),
+    dot,
+    text,
+    actions,
+  );
+
+  reload.addEventListener('click', () => handlers.onReloadAndShow());
+  reply.addEventListener('click', () => handlers.onReply());
 
   return {
     element,
@@ -38,11 +61,18 @@ export function createPickRow(_handlers: PickRowHandlers): PickRow {
         return;
       }
       dot.className = `dot dot--${view.status === 'lost' ? 'unknown' : view.status}`;
-      text.textContent = `${view.paneId} · ${describeStatus(view.status)}`;
+      text.textContent = describe(view);
       text.title = text.textContent;
+      reload.hidden = view.status !== 'done' || (view.itemCount ?? 0) === 0;
+      reply.hidden = view.status === 'lost';
       element.removeAttribute('hidden');
     },
   };
+}
+
+function describe(view: PickStatusView): string {
+  const replies = view.followUps === 0 ? '' : ` · ${view.followUps} ${view.followUps === 1 ? 'reply' : 'replies'}`;
+  return `${view.paneId} · ${describeStatus(view.status)}${replies}`;
 }
 
 function describeStatus(status: PickStatus): string {

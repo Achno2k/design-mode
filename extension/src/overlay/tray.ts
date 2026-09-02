@@ -3,7 +3,7 @@ import {
   readPanelPosition,
   writePanelPosition,
 } from '../lib/panel-position.ts';
-import type { ItemTriage, Target } from '../lib/protocol.ts';
+import type { ItemTriage, SelectionBox, Target } from '../lib/protocol.ts';
 import { createAgentPicker } from './agent-picker.ts';
 import { createAnnotationStack, type AnnotationItem } from './annotations.ts';
 import { fill, make } from './dom.ts';
@@ -38,6 +38,8 @@ export interface Tray {
   setConsoleCapture(on: boolean, count: number): void;
   /** Screen space along the bottom that other panels should keep clear of. */
   reservedBottom(): number;
+  /** Where the sent-review row is, for a panel that should open beside it. */
+  pickRowBox(): SelectionBox;
   selectedPaneId(): string | null;
   selectedTarget(): Target | null;
   pageNote(): string;
@@ -340,6 +342,11 @@ export function createTray(layer: HTMLElement, handlers: TrayHandlers): Tray {
     // bottom is reserved and panels may use the full height.
     reservedBottom: () =>
       panel.hasAttribute('hidden') || panel.classList.contains('tray--floating') ? 0 : DOCKED_BAND,
+
+    pickRowBox() {
+      const rect = pickRow.element.getBoundingClientRect();
+      return { x: rect.left, y: rect.top, width: rect.width, height: rect.height };
+    },
 
     selectedPaneId: () => picker.selected()?.paneId ?? null,
     selectedTarget: () => picker.selected(),

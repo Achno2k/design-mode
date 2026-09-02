@@ -12,8 +12,9 @@ export const BASE_URL = 'http://127.0.0.1:8791';
 
 export const NOT_PAIRED = 'Not paired — open the popup and paste the pairing code.';
 
-const NOT_RUNNING =
+export const NOT_RUNNING =
   'The design-mode daemon is not running. Start it with `npm run dev` in a herdr pane.';
+export const TIMED_OUT = 'The daemon timed out.';
 const TOKEN_KEY = 'pairingToken';
 const TOKEN_PATTERN = /^[a-f0-9]{32}$/;
 const REQUEST_TIMEOUT_MS = 8_000;
@@ -155,7 +156,7 @@ export async function daemonRequest<T>(
   try {
     response = await fetch(`${BASE_URL}${path}`, { ...prepared.value, signal: controller.signal });
   } catch (cause) {
-    return fail(cause instanceof DOMException && cause.name === 'AbortError' ? 'The daemon timed out.' : NOT_RUNNING);
+    return fail(cause instanceof DOMException && cause.name === 'AbortError' ? TIMED_OUT : NOT_RUNNING);
   } finally {
     clearTimeout(timeout);
   }

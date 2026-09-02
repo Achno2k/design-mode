@@ -2,7 +2,13 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import type { HerdrAgent } from '../../herdr/types.ts';
+import { createPickTracker, type PickTracker } from '../../picks/pick-tracker.ts';
 import { createSendHandler } from './send.ts';
+
+/** A tracker that never reaches herdr; every test stops it before returning. */
+function idleTracker(): PickTracker {
+  return createPickTracker({ listAgents: async () => ({ ok: true, value: [] }), intervalMs: 60_000 });
+}
 
 const liveAgent: HerdrAgent = {
   agent: 'codex',
@@ -34,7 +40,8 @@ test('rejects a blocked target before writing files or prompting', async () => {
   let wrote = false;
   let prompted = false;
 
-  const handleSend = createSendHandler({
+  const tracker = idleTracker();
+  const handleSend = createSendHandler(tracker, {
     listAgents: async () => ({
       ok: true,
       value: [
@@ -88,11 +95,13 @@ test('rejects a blocked target before writing files or prompting', async () => {
   });
   assert.equal(wrote, false);
   assert.equal(prompted, false);
+  tracker.stop();
 });
 
 test('revalidates that the selected pane is inside the resolved project scope', async () => {
   let wrote = false;
-  const handleSend = createSendHandler({
+  const tracker = idleTracker();
+  const handleSend = createSendHandler(tracker, {
     listAgents: async () => ({ ok: true, value: [liveAgent] }),
     resolveProjectScope: async () => ({
       ok: true,
@@ -112,12 +121,23 @@ test('revalidates that the selected pane is inside the resolved project scope', 
       'That agent is not working in the project behind http://localhost:3000. Refresh the targets and pick again.',
   });
   assert.equal(wrote, false);
+  tracker.stop();
 });
 
-test('writes and prompts after scope revalidation passes', async () => {
+test('writes and prompts after scope revalidation passes, then follows the review', async () => {
   let prompted = false;
-  const handleSend = createSendHandler({
-    listAgents: async () => ({ ok: true, value: [liveAgent] }),
+  let record: unknown = null;
+  const tracker = idleTracker();
+  const handleSend = createSendHandler(tracker, {
+    listAgents: async () => ({
+      ok: true,
+      value: [{ ...liveAgent, state_change_seq: 41, agent_session: { kind: 'id', value: 'session-a' } }],
+    }),
+    writePickRecord: async (directory, written) => {
+      record = { directory, ...written };
+      return { ok: true, value: undefined };
+    },
+    now: () => new Date('2026-09-02T10:00:00.000Z'),
     resolveProjectScope: async () => ({
       ok: true,
       value: { projectDir: '/repo/app', scope: '/repo' },
@@ -155,4 +175,20 @@ test('writes and prompts after scope revalidation passes', async () => {
   const result = await handleSend(sendContext());
   assert.equal(result.status, 200);
   assert.equal(prompted, true);
+
+  const tracked = tracker.get('pick-1');
+  assert.equal(tracked?.status, 'queued');
+  assert.equal(tracked?.baseSeq, 41);
+  assert.equal(tracked?.sessionId, 'session-a');
+  assert.deepEqual(record, {
+    directory: '/tmp/herdr-picks/pick-1',
+    pickId: 'pick-1',
+    paneId: 'w1:p1',
+    notePath: '/tmp/herdr-picks/pick-1/note.md',
+    sessionId: 'session-a',
+    baseSeq: 41,
+    followUps: 0,
+    sentAt: '2026-09-02T10:00:00.000Z',
+  });
+  tracker.stop();
 });

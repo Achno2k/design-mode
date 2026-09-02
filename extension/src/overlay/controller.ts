@@ -8,6 +8,7 @@ import { createKeyHandler } from './controller-keys.ts';
 import { createDrawing } from './drawing.ts';
 import { captureElementSelection } from './element-capture.ts';
 import { createHighlight } from './highlight.ts';
+import { createPickFollow } from './pick-follow.ts';
 import { createPickInput } from './pick-input.ts';
 import { createReviewSessionState } from './review-session.ts';
 import { createRouteWatcher } from './route-watcher.ts';
@@ -42,8 +43,8 @@ export interface Controller {
  * completed selections remain available to send.
  *
  * The pieces are wired here and live elsewhere: `pick-input` for the pointer,
- * `controller-keys` for the keyboard, `selection-ops` for the queued list, and
- * `send-flow` for delivery.
+ * `controller-keys` for the keyboard, `selection-ops` for the queued list,
+ * `send-flow` for delivery, and `pick-follow` for what happens after.
  */
 export function createController(layer: HTMLElement, host: Element): Controller {
   const highlight = createHighlight(layer, host);
@@ -76,8 +77,8 @@ export function createController(layer: HTMLElement, host: Element): Controller 
     onToggleAnnotate: () => setPicking(!picking),
     onToggleDraw: toggleDrawing,
     onToggleConsole: notYet,
-    onReloadAndShow: notYet,
-    onReply: notYet,
+    onReloadAndShow: () => void pickFollow.reloadAndShow(),
+    onReply: () => pickFollow.openReply(),
   });
   const reviewSession = createReviewSessionState(selections, () => window.location.href, (message) =>
     tray.setStatus(message, 'error'),
@@ -97,6 +98,15 @@ export function createController(layer: HTMLElement, host: Element): Controller 
     currentUrl: () => window.location.href,
     loadTargets,
     onSent,
+  });
+  const pickFollow = createPickFollow({
+    layer,
+    tray,
+    composer,
+    reviewSession,
+    isPicking: () => picking,
+    refreshTargets: () => void targetWatcher.refresh(),
+    hideHighlight: () => highlight.hide(),
   });
   const drawing = createDrawing(layer, {
     onModeChange: (active) => tray.setDrawing(active),
@@ -123,8 +133,8 @@ export function createController(layer: HTMLElement, host: Element): Controller 
     if (open) return;
     tray.setPageNote(reviewSession.restore(stored));
     selectionOps.show();
-    showLastPick();
     openSession(stored.picking);
+    pickFollow.resume();
     await loadTargets();
     if (open) targetWatcher.start();
   }
@@ -167,6 +177,7 @@ export function createController(layer: HTMLElement, host: Element): Controller 
     cancelDrawingDraft();
     targetWatcher.stop();
     routeWatcher.stop();
+    pickFollow.stop();
     window.removeEventListener('keydown', onKeyDown, true);
   }
 
@@ -345,17 +356,9 @@ export function createController(layer: HTMLElement, host: Element): Controller 
 
   function onSent(pick: SentPick): void {
     clearAll();
-    reviewSession.setLastPick(pick, picking);
-    showLastPick();
+    pickFollow.onSent(pick);
     tray.setStatus(`Sent to ${pick.paneId}.`, 'success');
     void targetWatcher.refresh();
-  }
-
-  function showLastPick(): void {
-    const pick = reviewSession.lastPick();
-    tray.setPickStatus(
-      pick === null ? null : { paneId: pick.paneId, status: pick.status, followUps: pick.followUps },
-    );
   }
 
   function notYet(): void {
