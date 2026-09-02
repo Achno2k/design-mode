@@ -81,16 +81,28 @@ npx .                              # start the daemon from the repo root
    component boundaries — the wrapper `<div>`s belonging to the hovered component
    are skipped, and only descendants declared in another file are drawn. Without
    one they fall back to direct DOM children.
+   The arrow keys walk the tree while picking — up to the parent, down to the
+   first child, left and right between siblings — and **Enter** selects.
+   Elements inside open shadow roots and same-origin iframes can be picked too.
 4. Use the pen button to draw directly over the page. Draw one or more strokes,
    click the pen again, then comment on the marked region.
 5. Add an optional page note in the tray. It can accompany selections or be sent
    on its own when the feedback applies to the whole page.
 6. Select as many elements and drawings as you like — the tray lists them in a
-   card above the bar, where any one of them can be removed before sending. The
-   session follows the tab across reloads and route changes, so one review can
-   contain annotations and page notes from multiple pages.
-7. Check the agent named in the tray, refresh or change it if needed, then hit
+   card above the bar, where each one can be edited, moved up or down, pointed
+   at a different element, tagged (bug, polish, question, and P1 to P3) or
+   removed before sending. Closing the composer with **Esc** keeps its draft
+   for the next time you click the same element. The session follows the tab
+   across reloads and route changes, so one review can contain annotations and
+   page notes from multiple pages.
+7. The terminal button in the tray turns on console capture: errors, unhandled
+   rejections and `console.error` calls from then on ride along with the review.
+8. Check the agent named in the tray, refresh or change it if needed, then hit
    **Send**.
+9. After sending, a row under the agent picker follows it: queued, working,
+   blocked, done. When it is done, **Reload and show** reloads the page and
+   outlines every element from that review, and **Reply** sends a follow-up
+   that points at the same note.
 
 ### Two states
 
@@ -105,6 +117,7 @@ type into the form you are reviewing, and come back with your selections intact.
 |---|---|
 | **Esc** | Close the composer, or stop annotating — selections are kept |
 | **⌘.** | Toggle annotating back on (`Ctrl+.` off macOS) |
+| **Arrows / Enter** | Walk to the parent, child or siblings of the highlighted element, and select it |
 | Bubble button in the tray | The same toggle, with the shortcut on hover |
 | **End session** in the popup | Ends the session and discards anything unsent |
 | The annotation pill in the tray | Opens the card of queued annotations, each removable |
@@ -125,20 +138,25 @@ Browser review — 2 selections on http://localhost:3000/tools/wallet.
 Read @/tmp/herdr-picks/2026-08-18-16-52-03-y55p/note.md and address each comment.
 ```
 
-The note starts with an optional page-level comment, then leads with the source
-location of each component or the position of each drawing. Every review item
-includes its comment, surrounding facts, accessibility context when available,
-and a cropped screenshot:
+The note starts with an optional page-level comment and any captured console
+errors, then leads with the source location of each component or the position
+of each drawing. Every review item includes its tag, its comment, surrounding
+facts, accessibility context when available, the viewport it was seen in, the
+rules that apply on hover, focus and active, and a cropped screenshot. Live
+style edits list the value as written in the stylesheet next to the computed
+one, so `var(--space-4)` or a Tailwind class survives the trip:
 
 ```md
-## 1. src/components/PriceCard.tsx:42
+## 1. [bug · P1] src/components/PriceCard.tsx:42
 
 > padding here is inconsistent with the other two cards
 
 - element: `<article>`
 - selector: `main > div.grid > article:nth-child(2)`
 - box: 320x186 at (410, 220)
+- viewport: 1440x900 @2x
 - styles: padding: 24px 16px; gap: 8px; border-radius: 12px
+- :hover (`.card:hover` in app.css): box-shadow: var(--shadow-2)
 
 ![selection 1](./shot-1.png)
 ```
@@ -188,6 +206,8 @@ source is unknown and leans on the selector, classes, and text instead.
 | `GET /targets?url=<page-url>` | paired | Which agents could act on this page |
 | `POST /blob` | paired | Store one PNG, return a `blobId` |
 | `POST /send` | paired | Write the note and prompt the chosen agent |
+| `GET /pick?id=&since=` | paired | Long poll the status of a sent review |
+| `POST /pick/follow-up` | paired | Append a reply to the note and prompt again |
 
 The daemon resolves the project from the dev-server port with `lsof`; the
 response reports `"source": "lsof" | "none"`.
