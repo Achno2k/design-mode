@@ -83,9 +83,17 @@ export type FrameEvent =
 /** What the top frame tells the content scripts in child frames to do. */
 export type FrameCommand =
   | { type: 'set-picking'; picking: boolean }
-  | { type: 'read-source'; marker: string }
+  /**
+   * Tag the frame's picked element and look its source up in that frame. The
+   * frame is told its own id because only the top frame ever learns it.
+   */
+  | { type: 'read-source'; marker: string; frameId: number }
   | { type: 'capturing'; active: boolean }
+  /** Drop the pinned highlight; the top page is done with that candidate. */
   | { type: 'clear' };
+
+/** What a frame answers with: a source location for `read-source`, otherwise just receipt. */
+export type FrameCommandResult = SelectionSource | null | true;
 
 export interface CaptureRequest {
   box: SelectionBox;
@@ -135,7 +143,7 @@ export interface BackgroundResults {
   'follow-up': FollowUpResponse;
   'install-console-hook': true;
   'frame-event': true;
-  'frame-command': true;
+  'frame-command': FrameCommandResult;
 }
 
 /** Messages the popup sends into a page's content script. */

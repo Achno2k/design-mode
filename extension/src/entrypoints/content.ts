@@ -8,13 +8,15 @@ import {
 } from '../lib/messaging.ts';
 import { createController, type Controller } from '../overlay/controller.ts';
 import { OVERLAY_CSS } from '../overlay/styles.ts';
+import { mountFrameAgent } from './content-frame.ts';
 
 /**
- * Runs on every localhost page.
+ * Runs on every localhost page, and in every localhost iframe on it.
  *
- * It mounts one host element with a shadow root and does nothing else until
- * design mode is switched on, so a page that is never reviewed pays only for an
- * empty div.
+ * The top document mounts one host element with a shadow root and does nothing
+ * else until design mode is switched on, so a page that is never reviewed pays
+ * only for an empty div. A child frame mounts the lighter frame agent instead;
+ * it only ever highlights and reports up.
  */
 
 const HOST_ID = 'herdr-design-mode-root';
@@ -101,6 +103,15 @@ async function handle(message: ContentRequest): Promise<Answer<DesignModeState>>
     case 'get-design-mode':
       return ok(state());
 
+    case 'frame-candidate':
+      active()?.onFrameEvent(message.frameId, message.event);
+      return ok(state());
+
+    // Commands are broadcast to every frame, this one included; only the
+    // frames act on them, but answering keeps the broadcast from erroring.
+    case 'frame-command':
+      return ok(state());
+
     default:
       return fail('Unknown request.');
   }
@@ -115,4 +126,5 @@ function state(): DesignModeState {
   };
 }
 
-mount();
+if (window === window.top) mount();
+else mountFrameAgent();

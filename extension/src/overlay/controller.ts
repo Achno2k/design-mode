@@ -1,4 +1,10 @@
-import { askBackground, isContextAlive, type ReviewSession, type SentPick } from '../lib/messaging.ts';
+import {
+  askBackground,
+  isContextAlive,
+  type FrameEvent,
+  type ReviewSession,
+  type SentPick,
+} from '../lib/messaging.ts';
 import type { Selection } from '../lib/protocol.ts';
 import { captureNotice, captureWithoutOverlay, includeCaptureReason, resolveCapture } from './capture-result.ts';
 import { describeElement, describeParts } from './collect.ts';
@@ -6,7 +12,9 @@ import { createComposer, type Draft } from './composer.ts';
 import { describeAdded, lowerFirst } from './controller-input.ts';
 import { createKeyHandler } from './controller-keys.ts';
 import { createDrawing } from './drawing.ts';
-import { captureElementSelection } from './element-capture.ts';
+import { captureElementSelection, type CapturedElement } from './element-capture.ts';
+import { isTypingTarget, isWalkKey, stepElement } from './element-walk.ts';
+import { createFrameCandidates } from './frame-candidates.ts';
 import { createHighlight } from './highlight.ts';
 import { createPickInput } from './pick-input.ts';
 import { createReviewSessionState } from './review-session.ts';
@@ -31,6 +39,8 @@ export interface Controller {
   isOpen(): boolean;
   isPicking(): boolean;
   selectionCount(): number;
+  /** Something happened in a child frame's content script. */
+  onFrameEvent(frameId: number, event: FrameEvent): void;
 }
 
 /**
@@ -103,7 +113,19 @@ export function createController(layer: HTMLElement, host: Element): Controller 
     onCancelRequested: finishDrawing,
   });
   const pickInput = createPickInput({ host, highlight, composer, onPick: openComposerFor });
-  const onKeyDown = createKeyHandler({ composer, isPicking: () => picking, setPicking });
+  const onKeyDown = createKeyHandler({ composer, isPicking: () => picking, setPicking, walk });
+  const frames = createFrameCandidates({
+    layer,
+    composer,
+    highlight,
+    isOpen: () => open,
+    isPicking: () => picking,
+    setPicking,
+    setStatus: (text, tone) => tray.setStatus(text, tone),
+    captureGeneration: () => captureGeneration,
+    pendingInitial: () => selectionOps.pendingInitial(),
+    onCaptured: addCaptured,
+  });
   const targetWatcher = createTargetWatcher(() => window.location.href, (targets, message) =>
     tray.setTargets(targets, message),
   );
@@ -188,8 +210,34 @@ export function createController(layer: HTMLElement, host: Element): Controller 
       highlight.hide();
       composer.close();
     }
+    frames.setPicking(next);
     tray.setAnnotating(next);
     if (open) reviewSession.save(picking);
+  }
+
+  /**
+   * Arrow keys move the highlight through the tree and Enter picks it, so an
+   * element the pointer cannot land on, such as a zero-height wrapper, is
+   * still reachable. Nothing current yet means start at `<body>`.
+   */
+  function walk(event: KeyboardEvent): boolean {
+    if (isTypingTarget(event.target, host)) return false;
+
+    const { key } = event;
+    const current = pickInput.current();
+    if (key === 'Enter') {
+      if (current === null) return false;
+      pickInput.pick(current);
+      return true;
+    }
+    if (!isWalkKey(key)) return false;
+
+    const next = current === null ? document.body : stepElement(current, key, host);
+    if (next !== null) {
+      next.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      pickInput.setCurrent(next);
+    }
+    return true;
   }
 
   function toggleDrawing(): void {
@@ -292,12 +340,19 @@ export function createController(layer: HTMLElement, host: Element): Controller 
     const generation = captureGeneration;
     tray.setStatus('Reading the component…', 'busy');
 
+    await frames.setCapturing(true);
     const captured = await captureElementSelection(layer, element, draft, window.location.href);
+    await frames.setCapturing(false);
     if (generation !== captureGeneration) {
       draft.styleEffect?.revert();
       return;
     }
 
+    addCaptured(captured, draft);
+  }
+
+  /** Queue a captured element, from this page or a frame, and say how it went. */
+  function addCaptured(captured: CapturedElement, draft: Draft): void {
     selectionOps.add(captured.selection, draft.styleEffect);
 
     const notice = captureNotice(captured.capture);
@@ -317,7 +372,9 @@ export function createController(layer: HTMLElement, host: Element): Controller 
     const generation = drawingGeneration;
     composingDrawing = false;
     tray.setStatus('Capturing the drawing…', 'busy');
+    await frames.setCapturing(true);
     const capture = resolveCapture(await captureWithoutOverlay(layer, pending.box));
+    await frames.setCapturing(false);
     // Clear, Exit, switching modes, or starting another drawing invalidates
     // this continuation. It must not commit old ink or clear newer ink.
     if (generation !== drawingGeneration) return;
@@ -370,5 +427,6 @@ export function createController(layer: HTMLElement, host: Element): Controller 
     isOpen: () => open,
     isPicking: () => picking,
     selectionCount: () => selections.length,
+    onFrameEvent: (frameId, event) => frames.handle(frameId, event),
   };
 }

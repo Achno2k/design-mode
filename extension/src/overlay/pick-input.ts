@@ -1,3 +1,4 @@
+import { deepElementFromPoint } from '../inspect/shadow.ts';
 import { describeHover } from './collect.ts';
 import type { Composer } from './composer.ts';
 import { pageElementAt } from './controller-input.ts';
@@ -18,7 +19,8 @@ export interface PickInput {
 export interface PickInputDeps {
   host: Element;
   highlight: Highlight;
-  composer: Composer;
+  /** Only asked whether it is up; a frame, which has no composer, passes a stub. */
+  composer: Pick<Composer, 'isOpen' | 'close'>;
   onPick(element: Element): void;
 }
 
@@ -30,13 +32,20 @@ export interface PickInputDeps {
 export function createPickInput(deps: PickInputDeps): PickInput {
   let current: Element | null = null;
 
+  /** The page element under the pointer, looking inside web components. */
+  function elementAt(event: MouseEvent): Element | null {
+    const top = pageElementAt(event, deps.host);
+    if (top === null || top.shadowRoot === null) return top;
+    return deepElementFromPoint(top.shadowRoot, event.clientX, event.clientY) ?? top;
+  }
+
   function onPointerMove(event: PointerEvent): void {
     if (deps.composer.isOpen()) return;
-    setCurrent(pageElementAt(event, deps.host));
+    setCurrent(elementAt(event));
   }
 
   function onClick(event: MouseEvent): void {
-    const element = pageElementAt(event, deps.host);
+    const element = elementAt(event);
     if (element === null) return;
 
     // The page must not act on this click — it was aimed at design mode.

@@ -1,7 +1,8 @@
 import type { CapturedScreenshot } from '../lib/messaging.ts';
 import type { ElementSelection } from '../lib/protocol.ts';
+import { buildPath } from '../inspect/selector.ts';
 import { captureWithoutOverlay, includeCaptureReason, resolveCapture } from './capture-result.ts';
-import { describeElement, measure, readSource } from './collect.ts';
+import { describeElement, measure, readSource, type ElementFacts } from './collect.ts';
 import type { Draft } from './composer.ts';
 import { toElementSelection } from './selection-shapes.ts';
 
@@ -24,8 +25,10 @@ export async function captureElementSelection(
 ): Promise<CapturedElement> {
   const source = await readSource(element);
   const capture = resolveCapture(await captureWithoutOverlay(layer, measure(element)));
+  // The path finds the element again through shadow roots, which one selector cannot.
+  const facts: ElementFacts = { ...describeElement(element), path: buildPath(element) };
   const selection = toElementSelection(
-    describeElement(element),
+    facts,
     draft,
     includeCaptureReason(draft.comment, capture),
     pageUrl,

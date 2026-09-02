@@ -6,7 +6,7 @@ export interface KeyHandlerDeps {
   isPicking(): boolean;
   setPicking(next: boolean): void;
   /** Handle a key while picking with nothing open. Return true when it was used. */
-  walk?(key: string): boolean;
+  walk?(event: KeyboardEvent): boolean;
 }
 
 /**
@@ -37,7 +37,7 @@ export function createKeyHandler(deps: KeyHandlerDeps): (event: KeyboardEvent) =
       return;
     }
 
-    if (deps.isPicking() && !deps.composer.isOpen() && deps.walk?.(event.key) === true) {
+    if (deps.isPicking() && !deps.composer.isOpen() && deps.walk?.(event) === true) {
       event.preventDefault();
     }
   };
