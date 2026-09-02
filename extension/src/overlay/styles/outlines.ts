@@ -12,7 +12,12 @@ export const OUTLINES_CSS = `
   border-radius: var(--radius-control);
   box-sizing: border-box;
   pointer-events: none;
+  opacity: 1;
+  transition: opacity 450ms ease-out;
 }
+
+/* Set a few seconds after showing; the box is hidden once the fade has run. */
+.outline--fading { opacity: 0; }
 
 .outline__number {
   position: absolute;

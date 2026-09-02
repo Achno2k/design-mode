@@ -47,8 +47,8 @@ export async function captureTabScreenshot(
   if (!cropped.ok) return ok({ incompleteReason: cropped.error });
 
   const uploaded = await postBlob(cropped.value);
-  if (uploaded.ok) return ok({ screenshotBlobId: uploaded.value.blobId });
-  return ok({ screenshot: cropped.value, notice: uploaded.error });
+  if (uploaded.ok) return ok({ screenshotBlobId: uploaded.value.blobId, preview: cropped.value });
+  return ok({ screenshot: cropped.value, preview: cropped.value, notice: uploaded.error });
 }
 
 interface CapturePlan {

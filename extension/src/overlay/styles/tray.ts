@@ -12,9 +12,17 @@ export const TRAY_CSS = `
   bottom: 18px;
   transform: translateX(-50%);
   padding: 0;
-  background: var(--surface-low);
-  border-radius: var(--radius-tray);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0) 45%),
+    rgba(20, 20, 20, 0.88);
+  backdrop-filter: blur(22px) saturate(150%);
+  -webkit-backdrop-filter: blur(22px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 18px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 24px 60px rgba(0, 0, 0, 0.55),
+    0 2px 8px rgba(0, 0, 0, 0.35);
   overflow: visible;
 }
 
@@ -26,7 +34,7 @@ export const TRAY_CSS = `
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 8px 12px;
+  padding: 10px 14px 4px;
   cursor: grab;
   touch-action: none;
 }
@@ -39,26 +47,51 @@ export const TRAY_CSS = `
 .tray--collapsed .tray__note, .tray--collapsed .tray__actions { display: none; }
 .tray--collapsed .stack { display: none; }
 
+/* The page note sits in its own field, so it reads as input rather than as a caption. */
 .tray__note {
   display: block;
-  width: 100%;
-  min-height: 36px;
+  width: calc(100% - 24px);
+  min-height: 38px;
   max-height: 80px;
-  padding: 4px 12px 12px;
-  border: 0;
-  background: transparent;
+  margin: 6px 12px 2px;
+  padding: 9px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.28);
   color: var(--text);
   font: inherit;
   font-size: 14px;
   line-height: 20px;
   resize: none;
+  transition: border-color 120ms, background 120ms, box-shadow 120ms;
 }
 
-.tray__note:focus { outline: none; }
-.tray__note::placeholder { color: rgba(189, 200, 209, 0.5); }
+.tray__note:focus {
+  outline: none;
+  border-color: rgba(142, 213, 255, 0.45);
+  background: rgba(0, 0, 0, 0.36);
+  box-shadow: var(--focus-ring);
+}
+.tray__note::placeholder { color: rgba(189, 200, 209, 0.45); }
 
-.tray__actions { display: flex; align-items: center; gap: 6px; padding: 8px 12px; }
-.tray__tool svg { width: 20px; height: 20px; }
+.tray__actions { display: flex; align-items: center; gap: 8px; padding: 8px 12px 12px; }
+
+/* The three modes read as one segmented control. */
+.tray__tools {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.04);
+}
+.tray__tools .circle { width: 30px; height: 30px; }
+.tray__tool svg { width: 19px; height: 19px; }
+
+.tray__send { box-shadow: 0 0 0 1px rgba(142, 213, 255, 0.25), 0 6px 18px rgba(56, 189, 248, 0.3); }
+.tray__send:hover { transform: translateY(-1px); }
+.tray__send:disabled { box-shadow: none; }
 
 .tray__queue {
   display: flex;

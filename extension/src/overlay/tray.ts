@@ -61,7 +61,6 @@ export interface TrayHandlers {
   onRemoveSelection(index: number): void;
   onEditSelection(index: number): void;
   onReselect(index: number): void;
-  onMoveSelection(index: number, direction: -1 | 1): void;
   onSetTriage(index: number, triage: ItemTriage): void;
   onToggleAnnotate(): void;
   onToggleDraw(): void;
@@ -98,7 +97,6 @@ export function createTray(layer: HTMLElement, handlers: TrayHandlers): Tray {
     onRemove: (index) => handlers.onRemoveSelection(index),
     onEdit: (index) => handlers.onEditSelection(index),
     onReselect: (index) => handlers.onReselect(index),
-    onMove: (index, direction) => handlers.onMoveSelection(index, direction),
     onSetTriage: (index, triage) => handlers.onSetTriage(index, triage),
   });
   const pickRow = createPickRow({
@@ -132,6 +130,7 @@ export function createTray(layer: HTMLElement, handlers: TrayHandlers): Tray {
   const consoleButton = iconButton('circle tray__tool', CONSOLE_ICON, 'Capture console errors');
   const consoleTip = make('span', { className: 'tip', text: 'Capture console errors' });
   const consoleSlot = fill(make('div', { className: 'tip-anchor' }), consoleTip, consoleButton);
+  const tools = fill(make('div', { className: 'tray__tools' }), annotateSlot, penSlot, consoleSlot);
 
   const queueCount = make('span', { text: '0 annotations' });
   const queue = fill(
@@ -165,9 +164,7 @@ export function createTray(layer: HTMLElement, handlers: TrayHandlers): Tray {
     note,
     fill(
       make('div', { className: 'tray__actions' }),
-      annotateSlot,
-      penSlot,
-      consoleSlot,
+      tools,
       queue,
       status,
       clear,

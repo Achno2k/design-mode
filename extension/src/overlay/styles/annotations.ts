@@ -44,24 +44,51 @@ export const ANNOTATIONS_CSS = `
 .stack__row {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
+  gap: 12px;
   padding: 10px;
-  border-radius: 10px;
+  border-radius: 12px;
   transition: background 120ms;
+}
+
+/* Clicking the crop opens it to the row's full width; clicking again folds it. */
+.stack__row--expanded { flex-wrap: wrap; }
+.stack__row--expanded .stack__shot {
+  order: 10;
+  flex: 1 0 100%;
+  width: 100%;
+  height: auto;
+  max-height: 320px;
+  object-fit: contain;
+  cursor: zoom-out;
 }
 
 .stack__row:hover { background: rgba(255, 255, 255, 0.04); }
 .stack__row + .stack__row { border-top: 1px solid var(--hairline); }
 
+/* The crop the agent will see, shown large enough to recognise the element. */
 .stack__shot {
   flex: none;
-  width: 32px;
-  height: 32px;
-  border-radius: 6px;
-  border: 1px solid var(--hairline);
+  width: 104px;
+  height: 68px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   background: var(--surface-lowest);
   object-fit: cover;
+  object-position: left top;
+  cursor: zoom-in;
+  transition: border-color 120ms, transform 120ms;
 }
+
+.stack__shot:hover { border-color: rgba(142, 213, 255, 0.5); }
+
+.stack__shot--missing {
+  display: block;
+  cursor: default;
+  background:
+    repeating-linear-gradient(135deg, transparent 0 6px, rgba(255, 255, 255, 0.03) 6px 12px),
+    var(--surface-lowest);
+}
+.stack__shot--missing:hover { border-color: rgba(255, 255, 255, 0.08); }
 
 .stack__body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 
@@ -131,28 +158,6 @@ export const ANNOTATIONS_CSS = `
 
 .stack__row:hover .stack__controls, .stack__controls:focus-within { opacity: 1; }
 
-.stack__moves { display: inline-flex; align-items: center; gap: 2px; }
-
-.stack__move {
-  display: grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
-  padding: 0;
-  border: 0;
-  border-radius: var(--radius-pill);
-  background: transparent;
-  color: var(--text-faint);
-  cursor: pointer;
-  transition: background 120ms, color 120ms;
-}
-
-.stack__move svg { width: 13px; height: 13px; }
-.stack__move--down svg { transform: rotate(180deg); }
-.stack__move:hover { background: rgba(255, 255, 255, 0.08); color: var(--text); }
-.stack__move:disabled { opacity: 0.3; cursor: default; }
-.stack__move:disabled:hover { background: transparent; color: var(--text-faint); }
-
 .stack__action {
   padding: 2px 8px;
   border: 1px solid var(--hairline);
@@ -210,6 +215,10 @@ export const ANNOTATIONS_CSS = `
   -webkit-appearance: none;
   transition: color 120ms, border-color 120ms;
 }
+
+/* An unset priority says nothing, so it stays out of the row until the control is hovered. */
+.triage__priority--unset { display: none; }
+.triage:hover .triage__priority--unset, .triage:focus-within .triage__priority--unset { display: inline-block; }
 
 .triage__priority:hover { color: var(--text); border-color: var(--outline); }
 .triage__priority:focus { outline: none; border-color: var(--accent); }

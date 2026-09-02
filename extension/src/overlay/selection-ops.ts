@@ -9,7 +9,8 @@ import type { Tray } from './tray.ts';
 
 /** Everything that changes the list of queued annotations. */
 export interface SelectionOps {
-  add(selection: Selection, effect?: CommittedStyleEdits): void;
+  /** `preview` is the crop shown in the queue card; it lives only in memory. */
+  add(selection: Selection, effect?: CommittedStyleEdits, preview?: string): void;
   remove(index: number): void;
   /** Drop every annotation and page note, and undo their live edits. */
   clear(): void;
@@ -19,7 +20,6 @@ export interface SelectionOps {
   edit(index: number): void;
   /** Start picking; the next element picked takes this item's place. */
   reselect(index: number): void;
-  move(index: number, direction: -1 | 1): void;
   setTriage(index: number, triage: ItemTriage): void;
   /** What a composer opening for a new pick should start with, if anything. */
   pendingInitial(): ComposerInitial | undefined;
@@ -51,9 +51,17 @@ export function createSelectionOps(deps: SelectionOpsDeps): SelectionOps {
   // items while the user is still picking cannot point the replacement at the
   // wrong one.
   let replacing: Selection | null = null;
+  // Thumbnails are kept off the selection so they are never sent or persisted.
+  const previews = new WeakMap<Selection, string>();
 
   function show(): void {
-    tray.setSelections(selections.map(toAnnotationItem));
+    tray.setSelections(
+      selections.map((selection, index) => {
+        const item = toAnnotationItem(selection, index);
+        const preview = previews.get(selection);
+        return preview === undefined ? item : { ...item, screenshot: preview };
+      }),
+    );
   }
 
   function changed(): void {
@@ -62,10 +70,11 @@ export function createSelectionOps(deps: SelectionOpsDeps): SelectionOps {
     reviewSession.save(deps.isPicking());
   }
 
-  function add(selection: Selection, effect?: CommittedStyleEdits): void {
+  function add(selection: Selection, effect?: CommittedStyleEdits, preview?: string): void {
     const index = replacing === null ? -1 : selections.indexOf(replacing);
     const old = replacing;
     replacing = null;
+    if (preview !== undefined) previews.set(selection, preview);
 
     // A drawing is a region, not the element the user was asked to click, so
     // it goes on the end and the reselect is simply dropped.
@@ -130,18 +139,6 @@ export function createSelectionOps(deps: SelectionOpsDeps): SelectionOps {
     tray.setStatus(`Click the element that replaces item ${index + 1}.`, 'busy');
   }
 
-  function move(index: number, direction: -1 | 1): void {
-    const other = index + direction;
-    const a = selections[index];
-    const b = selections[other];
-    if (a === undefined || b === undefined) return;
-
-    selections[index] = b;
-    selections[other] = a;
-    changed();
-    tray.setStatus(`Moved to ${other + 1}.`, 'idle');
-  }
-
   function setTriage(index: number, triage: ItemTriage): void {
     const selection = selections[index];
     if (selection === undefined) return;
@@ -158,7 +155,7 @@ export function createSelectionOps(deps: SelectionOpsDeps): SelectionOps {
     };
   }
 
-  return { add, remove, clear, show, edit, reselect, move, setTriage, pendingInitial };
+  return { add, remove, clear, show, edit, reselect, setTriage, pendingInitial };
 }
 
 /** Set or drop the triage so an untriaged item carries no empty object. */

@@ -89,9 +89,9 @@ npx .                              # start the daemon from the repo root
 5. Add an optional page note in the tray. It can accompany selections or be sent
    on its own when the feedback applies to the whole page.
 6. Select as many elements and drawings as you like — the tray lists them in a
-   card above the bar, where each one can be edited, moved up or down, pointed
-   at a different element, tagged (bug, polish, question, and P1 to P3) or
-   removed before sending. Closing the composer with **Esc** keeps its draft
+   card above the bar with the exact crop the agent will get, where each one
+   can be edited, pointed at a different element, tagged (bug, polish,
+   question, and P1 to P3) or removed before sending. Closing the composer with **Esc** keeps its draft
    for the next time you click the same element. The session follows the tab
    across reloads and route changes, so one review can contain annotations and
    page notes from multiple pages.

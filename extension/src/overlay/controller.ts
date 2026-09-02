@@ -83,7 +83,6 @@ export function createController(layer: HTMLElement, host: Element): Controller 
     onRemoveSelection: (index) => selectionOps.remove(index),
     onEditSelection: (index) => selectionOps.edit(index),
     onReselect: (index) => selectionOps.reselect(index),
-    onMoveSelection: (index, direction) => selectionOps.move(index, direction),
     onSetTriage: (index, triage) => selectionOps.setTriage(index, triage),
     onToggleAnnotate: () => setPicking(!picking),
     onToggleDraw: toggleDrawing,
@@ -378,7 +377,7 @@ export function createController(layer: HTMLElement, host: Element): Controller 
 
   /** Queue a captured element, from this page or a frame, and say how it went. */
   function addCaptured(captured: CapturedElement, draft: Draft): void {
-    selectionOps.add(captured.selection, draft.styleEffect);
+    selectionOps.add(captured.selection, draft.styleEffect, captured.capture.preview);
 
     const notice = captureNotice(captured.capture);
     tray.setStatus(
@@ -405,10 +404,14 @@ export function createController(layer: HTMLElement, host: Element): Controller 
     if (generation !== drawingGeneration) return;
     const committed = drawing.commit() ?? pending;
 
-    selectionOps.add({
-      ...toDrawingSelection(committed, includeCaptureReason(draft.comment, capture), capture, draft.triage),
-      pageUrl: window.location.href,
-    });
+    selectionOps.add(
+      {
+        ...toDrawingSelection(committed, includeCaptureReason(draft.comment, capture), capture, draft.triage),
+        pageUrl: window.location.href,
+      },
+      undefined,
+      capture.preview,
+    );
 
     const notice = captureNotice(capture);
     tray.setStatus(

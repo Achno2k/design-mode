@@ -107,6 +107,8 @@ export interface CaptureRequest {
 export interface CapturedScreenshot {
   screenshotBlobId?: string;
   screenshot?: string;
+  /** The crop as base64 PNG, for the tray's thumbnail. Never sent or persisted. */
+  preview?: string;
   /** Shown in the tray when blob upload fell back to inline delivery. */
   notice?: string;
   /** Added to the review when a complete image could not be captured. */

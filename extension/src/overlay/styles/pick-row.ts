@@ -4,7 +4,11 @@ export const PICK_ROW_CSS = `
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 12px 0;
+  margin: 4px 12px 0;
+  padding: 6px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
   font-size: 12px;
   line-height: 16px;
   color: var(--text-faint);

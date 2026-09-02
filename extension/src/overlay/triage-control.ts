@@ -46,6 +46,8 @@ export function createTriageControl(
     chip.className = category === undefined ? 'triage__chip' : `triage__chip triage__chip--${category}`;
     select.value = priority ?? '';
     select.classList.toggle('triage__priority--set', priority !== undefined);
+    // Out of the way until it says something; hovering the control brings it back.
+    select.classList.toggle('triage__priority--unset', priority === undefined);
   }
 
   function value(): ItemTriage | undefined {
