@@ -160,16 +160,18 @@ export function createComposer(layer: HTMLElement, options: ComposerOptions): Co
     }
 
     const handler = onSubmit;
+    const chosenTriage = triage;
     const hasEdits = styleChanges.length > 0 || textChange !== undefined;
     stash = null;
     // Cleared without reverting, so the live edits stay on screen after adding.
+    // The reset also forgets the triage, so it is read before that.
     resetPanel();
     handler?.({
       comment,
       styleChanges,
       ...(textChange === undefined ? {} : { textChange }),
       ...(committed === null || !hasEdits ? {} : { styleEffect: committed }),
-      ...(triage === undefined ? {} : { triage }),
+      ...(chosenTriage === undefined ? {} : { triage: chosenTriage }),
     });
   }
 

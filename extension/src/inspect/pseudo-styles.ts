@@ -99,18 +99,54 @@ function appliesTo(element: Element, selector: string): boolean {
   }
 }
 
+/**
+ * Shorthands the CSSOM expands into longhands. When the rule set one of these,
+ * it is reported as written and its longhands are folded away, so
+ * `background: #333` does not arrive as nine `initial` lines.
+ */
+const SHORTHANDS = [
+  'background',
+  'border',
+  'border-radius',
+  'font',
+  'margin',
+  'padding',
+  'inset',
+  'outline',
+  'gap',
+  'flex',
+  'transition',
+  'animation',
+  'grid-area',
+  'place-items',
+];
+
 function readDeclarations(style: CSSStyleDeclaration): Record<string, string> {
   const declarations: Record<string, string> = {};
+  const folded = new Set<string>();
+
+  for (const shorthand of SHORTHANDS) {
+    const value = style.getPropertyValue(shorthand);
+    if (value === '') continue;
+    declarations[shorthand] = withPriority(value, style.getPropertyPriority(shorthand));
+    for (const property of Array.from(style)) {
+      if (property.startsWith(`${shorthand}-`)) folded.add(property);
+    }
+  }
 
   for (const property of Array.from(style)) {
+    if (folded.has(property)) continue;
     const value = style.getPropertyValue(property);
-    if (value === '') continue;
-
-    const priority = style.getPropertyPriority(property);
-    declarations[property] = priority === '' ? value : `${value} !${priority}`;
+    // `initial` only appears as the residue of a shorthand the browser expanded.
+    if (value === '' || value === 'initial') continue;
+    declarations[property] = withPriority(value, style.getPropertyPriority(property));
   }
 
   return declarations;
+}
+
+function withPriority(value: string, priority: string): string {
+  return priority === '' ? value : `${value} !${priority}`;
 }
 
 /** Split `a:hover, b:focus` into its parts, ignoring commas inside `:is(…)`. */
