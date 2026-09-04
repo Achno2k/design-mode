@@ -1,6 +1,6 @@
 import type { ItemTriage, SelectionBox, StyleChange, TextChange } from '../lib/protocol.ts';
 import { createBoxModel } from './box-model.ts';
-import { fill, make, placeNear } from './dom.ts';
+import { fill, keepScrollInside, make, placeNear } from './dom.ts';
 import { CHECK_ICON, SLIDERS_ICON } from './icons.ts';
 import { createStyleEditor, type CommittedStyleEdits } from './style-editor.ts';
 import { createTriageControl } from './triage-control.ts';
@@ -102,6 +102,7 @@ export function createComposer(layer: HTMLElement, options: ComposerOptions): Co
     editorPanel,
     fill(make('div', { className: 'composer__footer' }), cancel, triageControl.element(), submit),
   );
+  keepScrollInside(panel);
   layer.append(panel);
 
   let anchor: Element | SelectionBox | null = null;

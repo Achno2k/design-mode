@@ -6,7 +6,7 @@ import {
 import type { ItemTriage, SelectionBox, Target } from '../lib/protocol.ts';
 import { createAgentPicker } from './agent-picker.ts';
 import { createAnnotationStack, type AnnotationItem } from './annotations.ts';
-import { fill, make } from './dom.ts';
+import { fill, keepScrollInside, make } from './dom.ts';
 import { makeDraggable } from './draggable.ts';
 import {
   ANNOTATE_ICON,
@@ -171,6 +171,7 @@ export function createTray(layer: HTMLElement, handlers: TrayHandlers): Tray {
       sendSlot,
     ),
   );
+  keepScrollInside(panel);
   layer.append(panel);
 
   const drag = makeDraggable(panel, head, {

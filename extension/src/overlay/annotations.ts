@@ -1,5 +1,5 @@
 import type { ItemTriage } from '../lib/protocol.ts';
-import { fill, make } from './dom.ts';
+import { fill, keepScrollInside, make } from './dom.ts';
 import { CLOSE_ICON } from './icons.ts';
 import { createTriageControl } from './triage-control.ts';
 
@@ -50,7 +50,7 @@ export interface AnnotationStack {
  */
 export function createAnnotationStack(actions: AnnotationActions): AnnotationStack {
   const list = make('div', { className: 'stack__list' });
-  const root = fill(make('div', { className: 'stack' }), list);
+  const root = keepScrollInside(fill(make('div', { className: 'stack' }), list));
 
   let open = false;
 

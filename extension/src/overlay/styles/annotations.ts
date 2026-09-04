@@ -13,6 +13,7 @@ export const ANNOTATIONS_CSS = `
   bottom: calc(100% + 8px);
   max-height: 320px;
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 4px;
   border: 1px solid var(--hairline);
   border-radius: var(--radius-tray);

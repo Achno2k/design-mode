@@ -22,6 +22,22 @@ export function fill<T extends HTMLElement>(parent: T, ...children: Node[]): T {
   return parent;
 }
 
+/**
+ * Keep wheel and touch scrolling inside a panel.
+ *
+ * `overscroll-behavior` stops the browser chaining a scroll to the page, but
+ * pages with their own smooth-scroll code listen for `wheel` on the document
+ * and move the page themselves. Those listeners must never hear a wheel that
+ * happened over the overlay, so the event stops at the panel. The default is
+ * left alone, so the panel's own scrollbar still works.
+ */
+export function keepScrollInside<T extends HTMLElement>(panel: T): T {
+  for (const type of ['wheel', 'touchmove'] as const) {
+    panel.addEventListener(type, (event) => event.stopPropagation(), { passive: true });
+  }
+  return panel;
+}
+
 /** Room to leave around a floating panel. */
 export interface Placement {
   /** Gap between the panel and the element it points at. */
