@@ -12,11 +12,11 @@ import { screen, type Screen } from './screen.ts';
 export async function showIntro(
   token: string,
   version: string | undefined,
-  extensionCommand: string,
+  extensionDir: string,
   target: Screen = screen,
 ): Promise<void> {
   if (!target.interactive) {
-    printPlainPairing(token, extensionCommand);
+    printPlainPairing(token, extensionDir);
     return;
   }
 
@@ -25,17 +25,17 @@ export async function showIntro(
     // Drops npm's "> nudge-daemon@… dev" echo above the banner.
     target.clear();
     await playBanner(target, { version });
-    const card = renderPairingCard(token, target.paint, target.columns(), extensionCommand);
+    const card = renderPairingCard(token, target.paint, target.columns(), extensionDir);
     target.raw(`${card.join('\n')}\n\n`);
   } finally {
     release();
   }
 }
 
-function printPlainPairing(token: string, extensionCommand: string): void {
+function printPlainPairing(token: string, extensionDir: string): void {
   log.info('────────────────────────────────────────────────────────────────');
   log.info(`Pairing code: ${token}  (paste this into the extension popup)`);
-  log.info(`Next: run \`${extensionCommand}\` for the folder to load in chrome://extensions,`);
-  log.info('      then paste this code into the extension popup.');
+  log.info(`Extension folder: ${extensionDir}`);
+  log.info('      Load unpacked that folder in chrome://extensions, then paste the code into the popup.');
   log.info('────────────────────────────────────────────────────────────────');
 }

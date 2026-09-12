@@ -27,7 +27,7 @@ async function main(): Promise<void> {
   }
 
   // Not awaited: the server starts while the banner plays, and its log lines wait for the card.
-  void showIntro(token.value, config.version, config.extensionCommand);
+  void showIntro(token.value, config.version, config.distDir);
 
   const cleanup = await cleanExpiredPicks();
   if (!cleanup.ok) log.warn(cleanup.error);

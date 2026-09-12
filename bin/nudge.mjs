@@ -24,18 +24,11 @@ const DAEMON_SOURCE = new URL('../daemon/src/index.ts', import.meta.url);
 const [command] = process.argv.slice(2);
 
 /**
- * How this copy was installed decides which command the pairing card should
- * print for the extension folder, and whether that folder can be trusted to
- * stay put. `npx nudge-mode` runs out of npm's cache, which npm may clear or
- * replace on the next version; a clone has no `nudge` bin at all.
+ * `npx nudge-mode` runs out of npm's cache, which npm may clear or replace on
+ * the next version, and Chrome would then lose the folder it loaded. Worth a
+ * warning wherever the path is printed.
  */
 const FROM_NPX_CACHE = /[\\/]_npx[\\/]/.test(EXTENSION_DIR);
-const FROM_CLONE = await exists(DAEMON_SOURCE);
-const EXTENSION_COMMAND = FROM_CLONE
-  ? 'npx . extension'
-  : FROM_NPX_CACHE
-    ? 'npx nudge-mode extension'
-    : 'nudge extension';
 
 switch (command) {
   case undefined:
@@ -72,7 +65,6 @@ async function startDaemon() {
 
   process.env.NUDGE_DIST ??= EXTENSION_DIR;
   process.env.NUDGE_VERSION ??= await readVersion();
-  process.env.NUDGE_EXTENSION_COMMAND ??= EXTENSION_COMMAND;
 
   if (await exists(BUNDLED_DAEMON)) {
     await import(BUNDLED_DAEMON.href);

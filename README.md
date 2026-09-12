@@ -44,21 +44,22 @@ replaced on the next version and would leave Chrome pointing at nothing.
 nudge
 ```
 
-It draws a **pairing code** in a card, listens on `127.0.0.1:8791`, and stays up
-for the session. Loopback only — it runs `herdr` commands and must never be
-reachable from the network. The code is generated once and kept at
-`~/.nudge/token` (mode `0600`), so it survives restarts.
+It draws a card with the **pairing code** and the **extension folder**, listens
+on `127.0.0.1:8791`, and stays up for the session. Loopback only — it runs
+`herdr` commands and must never be reachable from the network. The code is
+generated once and kept at `~/.nudge/token` (mode `0600`), so it survives
+restarts.
 
 **3. Load the extension.** It is not on the Chrome Web Store, so Chrome loads it
-from disk. Ask the package where it lives:
+from disk. Open `chrome://extensions`, turn on **Developer mode**, choose **Load
+unpacked**, and pick the folder from the card. The manifest pins a public key, so
+the extension keeps the same id across reinstalls.
+
+Need the folder again? In another pane:
 
 ```bash
 nudge extension     # prints the folder; add | pbcopy to copy it
 ```
-
-Then open `chrome://extensions`, turn on **Developer mode**, choose **Load
-unpacked**, and pick that folder. The manifest pins a public key, so the
-extension keeps the same id across reinstalls.
 
 Updates arrive the same way code does in development: `npm update -g nudge-mode`,
 and the running daemon tells the extension to reload itself from the same folder.
