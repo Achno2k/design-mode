@@ -171,7 +171,7 @@ code {
   max-width: none;
 }
 .hero__title em { font-style: normal; color: var(--accent); }
-.hero__actions { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: 2rem; }
+.hero__actions { display: flex; flex-wrap: wrap; justify-content: center; gap: .75rem; margin-top: 2rem; max-width: none; }
 
 /* the annotated frame */
 
