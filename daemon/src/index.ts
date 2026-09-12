@@ -41,7 +41,7 @@ async function main(): Promise<void> {
   server.on('error', (cause: NodeJS.ErrnoException) => {
     const message =
       cause.code === 'EADDRINUSE'
-        ? `Port ${config.port} is already taken — the daemon may already be running.`
+        ? `Port ${config.port} is taken. Is the daemon already running?`
         : `Server error: ${cause.message}`;
     log.error(message);
     builds.stop();

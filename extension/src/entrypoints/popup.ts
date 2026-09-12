@@ -73,7 +73,9 @@ async function reconnect(): Promise<void> {
 
     const paired = await verifyStoredPairing(pageUrl, health.value);
     if (!paired.ok) {
-      showPairing(false, paired.error);
+      // The status line carries the sentence; the line under the field only
+      // needs the state, or the same words appear twice a few pixels apart.
+      showPairing(false, 'Not paired');
       showStatus(paired.error, 'error');
       return;
     }
@@ -93,7 +95,7 @@ async function pair(): Promise<void> {
   try {
     const answer = await pairWithDaemon(pairingCode.value, pageUrl);
     if (!answer.ok) {
-      showPairing(false, answer.error);
+      showPairing(false, 'Not paired');
       showStatus(answer.error, 'error');
       return;
     }

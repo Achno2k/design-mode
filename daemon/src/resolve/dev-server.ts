@@ -23,7 +23,7 @@ export async function resolveProjectDir(
   const pids = await findListeningPids(port.value, dependencies.runCommand);
   if (!pids.ok) return pids;
   if (pids.value.length === 0) {
-    return err(`Nothing is listening on port ${port.value} — is your dev server running?`);
+    return err(`Nothing is listening on port ${port.value}. Is your dev server running?`);
   }
 
   let firstDirectory: string | null = null;

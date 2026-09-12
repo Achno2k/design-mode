@@ -35,7 +35,7 @@ export async function runCommandStatus(
 function describeFailure(binary: string, cause: unknown): string {
   if (!isExecError(cause)) return `Running "${binary}" failed for an unknown reason.`;
   if (cause.code === 'ENOENT') {
-    return `Could not find "${binary}" — is it installed and on your PATH?`;
+    return `Could not find "${binary}". Is it installed and on your PATH?`;
   }
   if (cause.killed) return `"${binary}" did not finish in time and was stopped.`;
   return `Running "${binary}" failed: ${cause.message}`;

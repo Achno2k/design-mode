@@ -10,7 +10,7 @@ import type {
 /** Must match `port` in the daemon configuration. */
 export const BASE_URL = 'http://127.0.0.1:8791';
 
-export const NOT_PAIRED = 'Not paired — open the popup and paste the pairing code.';
+export const NOT_PAIRED = 'Not paired. Paste the code the daemon printed.';
 
 export const NOT_RUNNING =
   'The Nudge daemon is not running. Start it with `npx nudge-mode` in a herdr pane.';

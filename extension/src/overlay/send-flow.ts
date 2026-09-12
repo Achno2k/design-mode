@@ -49,7 +49,7 @@ export function createSendFlow(deps: SendFlowDeps): SendFlow {
       const target = tray.selectedTarget();
       if (target === null || target.paneId !== requestedPaneId) {
         confirmedWorkingPaneId = null;
-        tray.setStatus('That target is no longer available — choose another.', 'error');
+        tray.setStatus('That agent is gone. Choose another.', 'error');
         return;
       }
       const ready = confirmTargetReady(
@@ -64,7 +64,7 @@ export function createSendFlow(deps: SendFlowDeps): SendFlow {
         tray.setStatus('Nothing to send.', 'idle');
         return;
       }
-      tray.setStatus(target.status === 'unknown' ? 'Status unknown — sending anyway…' : 'Sending…', 'busy');
+      tray.setStatus(target.status === 'unknown' ? 'Status unknown, sending anyway…' : 'Sending…', 'busy');
 
       const url = deps.currentUrl();
       const consoleErrors = reviewSession.consoleErrors();

@@ -319,7 +319,7 @@ export function createController(layer: HTMLElement, host: Element): Controller 
     // the page rather than sitting there swallowing every click.
     if (!isContextAlive()) {
       setPicking(false);
-      tray.setTargets([], 'Reload the page — Nudge was updated.');
+      tray.setTargets([], 'Nudge was updated. Reload the page.');
       return false;
     }
 

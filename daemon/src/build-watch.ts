@@ -43,7 +43,7 @@ export function watchBuild(
       finishWaiters(waiters, revision);
     });
   } catch {
-    log.warn(`Not watching ${directory} for rebuilds — build the extension to enable live reload.`);
+    log.warn(`Not watching ${directory} for rebuilds. Build the extension to enable live reload.`);
   }
 
   return {
