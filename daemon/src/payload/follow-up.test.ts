@@ -43,7 +43,7 @@ test('reports a missing note as a readable failure', async () => {
 
 test('renders the prompt that points the agent at the new section', () => {
   assert.equal(
-    renderFollowUpPrompt('/tmp/herdr-picks/p/note.md', 2),
-    'Browser review follow-up 2 — read the "## Follow-up 2" section at the end of @/tmp/herdr-picks/p/note.md and address it.',
+    renderFollowUpPrompt('/tmp/nudge-picks/p/note.md', 2),
+    'Browser review follow-up 2 — read the "## Follow-up 2" section at the end of @/tmp/nudge-picks/p/note.md and address it.',
   );
 });

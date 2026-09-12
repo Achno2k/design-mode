@@ -1,5 +1,5 @@
 /** Event the hooked page dispatches on `document` for every error it sees. */
-export const CONSOLE_EVENT = 'herdr-design-mode-console';
+export const CONSOLE_EVENT = 'nudge-console';
 
 /** One error, as the page reports it. Travels as JSON — see `installConsoleHook`. */
 export interface ConsoleHookEntry {

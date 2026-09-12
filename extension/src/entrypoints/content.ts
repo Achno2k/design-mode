@@ -19,8 +19,8 @@ import { mountFrameAgent } from './content-frame.ts';
  * it only ever highlights and reports up.
  */
 
-const HOST_ID = 'herdr-design-mode-root';
-const DESTROY_EVENT = 'herdr-design-mode-destroy';
+const HOST_ID = 'nudge-root';
+const DESTROY_EVENT = 'nudge-destroy';
 
 /**
  * Shared with any other copy of this script in the same world.
@@ -93,7 +93,7 @@ async function handle(message: ContentRequest): Promise<Answer<DesignModeState>>
   switch (message.kind) {
     case 'set-design-mode': {
       const controller = active();
-      if (controller === null) return fail('Design mode is not ready on this page.');
+      if (controller === null) return fail('Nudge is not ready on this page.');
 
       if (message.enabled) await controller.start();
       else controller.stop();

@@ -6,7 +6,7 @@ import { test } from 'node:test';
 const execFileAsync = promisify(execFile);
 
 test('launcher explains that it must run inside herdr', async () => {
-  const launcher = new URL('../../bin/herdr-design-mode.mjs', import.meta.url);
+  const launcher = new URL('../../bin/nudge.mjs', import.meta.url);
   const environment = { ...process.env };
   delete environment.HERDR_ENV;
 

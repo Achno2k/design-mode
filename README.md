@@ -1,7 +1,8 @@
-# herdr design mode
+# Nudge
 
-Select components on a local dev server, comment on them, and send them straight
-to the herdr agent session that is working on that project.
+Design mode for herdr. Select components on a local dev server, comment on
+them, and send them straight to the herdr agent session that is working on
+that project.
 
 ```
 you select + comment in the browser
@@ -29,24 +30,24 @@ extension rides along inside it.
 **1. Start the daemon**, in a pane in the herdr session you want reviews sent to:
 
 ```bash
-npx herdr-design-mode
+npx nudge-mode
 ```
 
 It listens on `127.0.0.1:8791` and prints a **pairing code**:
 
 ```
-[design-mode] Pairing code: 8b5296f8ea3180a2397bf57e6384e9ea
+[nudge] Pairing code: 8b5296f8ea3180a2397bf57e6384e9ea
 ```
 
 Loopback only — it runs `herdr` commands and must never be reachable from the
-network. The code is generated once and kept at `~/.herdr-design-mode/token`
+network. The code is generated once and kept at `~/.nudge/token`
 (mode `0600`), so it survives restarts.
 
 **2. Load the extension.** It is not on the Chrome Web Store, so Chrome loads it
 from disk. Ask the package where it lives:
 
 ```bash
-npx herdr-design-mode extension     # prints the folder; add | pbcopy to copy it
+npx nudge-mode extension     # prints the folder; add | pbcopy to copy it
 ```
 
 Then open `chrome://extensions`, turn on **Developer mode**, choose **Load
@@ -97,8 +98,8 @@ npx .                              # start the daemon from the repo root
    page notes from multiple pages.
 7. The terminal button in the tray turns on console capture: errors, unhandled
    rejections and `console.error` calls from then on ride along with the review.
-8. Check the agent named in the tray, refresh or change it if needed, then hit
-   **Send**.
+8. Check the agent named in the tray; its menu lists the others and can ask
+   herdr again. Then hit **Send**.
 9. After sending, a row under the agent picker follows it: queued, working,
    blocked, done. When it is done, **Reload and show** reloads the page and
    outlines every element from that review, and **Reply** sends a follow-up
@@ -121,8 +122,8 @@ type into the form you are reviewing, and come back with your selections intact.
 | Bubble button in the tray | The same toggle, with the shortcut on hover |
 | **End session** in the popup | Ends the session and discards anything unsent |
 | The annotation pill in the tray | Opens the card of queued annotations, each removable |
-| Drag the tray's header | Moves the tray anywhere on screen; it is remembered |
-| Chevron in the tray's header | Collapses the tray to its header |
+| Drag the bar by its edge | Moves the tray anywhere on screen; it is remembered |
+| Chevron in the bar's corner | Collapses the tray to a tab on the nearest screen edge; click the tab to bring it back |
 
 While annotating is off the tray stays put, and the page behaves completely
 normally. Navigate in the same tab and the tray, queued annotations, and
@@ -135,7 +136,7 @@ context:
 
 ```
 Browser review — 2 selections on http://localhost:3000/tools/wallet.
-Read @/tmp/herdr-picks/2026-08-18-16-52-03-y55p/note.md and address each comment.
+Read @/tmp/nudge-picks/2026-08-18-16-52-03-y55p/note.md and address each comment.
 ```
 
 The note starts with an optional page-level comment and any captured console
@@ -236,7 +237,7 @@ So three things guard it:
   inside the repository behind the URL being reviewed, so a stale or forged
   `paneId` cannot reach an unrelated agent.
 
-Reviews are written to `/tmp/herdr-picks` with `0700` directories and `0600`
+Reviews are written to `/tmp/nudge-picks` with `0700` directories and `0600`
 files, and anything older than seven days is deleted on the next boot.
 
 ## Development

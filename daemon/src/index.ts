@@ -9,6 +9,7 @@ import { cleanExpiredPicks } from './payload/cleanup.ts';
 import { createPickTracker } from './picks/pick-tracker.ts';
 import { createRequestListener } from './server/router.ts';
 import { createRoutes } from './server/routes/index.ts';
+import { showIntro } from './terminal/intro.ts';
 
 /** Start the loopback daemon inside the calling herdr pane. */
 async function main(): Promise<void> {
@@ -25,11 +26,8 @@ async function main(): Promise<void> {
     return;
   }
 
-  log.info('────────────────────────────────────────────────────────────────');
-  log.info(`Pairing code: ${token.value}  (paste this into the extension popup)`);
-  log.info('Next: run `npx herdr-design-mode extension` for the folder to load in chrome://extensions,');
-  log.info('      then paste this code into the extension popup.');
-  log.info('────────────────────────────────────────────────────────────────');
+  // Not awaited: the server starts while the banner plays, and its log lines wait for the card.
+  void showIntro(token.value, config.version);
 
   const cleanup = await cleanExpiredPicks();
   if (!cleanup.ok) log.warn(cleanup.error);
@@ -52,7 +50,7 @@ async function main(): Promise<void> {
   });
 
   server.listen(config.port, config.host, () => {
-    log.info(`Listening on http://${config.host}:${config.port}`);
+    log.ready(`Listening on http://${config.host}:${config.port}`);
   });
 
   for (const signal of ['SIGINT', 'SIGTERM'] as const) {

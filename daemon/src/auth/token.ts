@@ -9,7 +9,7 @@ const TOKEN_PATTERN = /^[0-9a-f]{32}$/;
 
 /** Read the persistent pairing token, creating a private one on first use. */
 export async function readOrCreateToken(
-  tokenPath: string = join(homedir(), '.herdr-design-mode', 'token'),
+  tokenPath: string = join(homedir(), '.nudge', 'token'),
 ): Promise<Result<string>> {
   const directory = dirname(tokenPath);
   try {

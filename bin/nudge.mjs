@@ -13,10 +13,11 @@
  * path at all once it is built.
  */
 
-import { access } from 'node:fs/promises';
+import { access, readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 
 const EXTENSION_DIR = fileURLToPath(new URL('../extension/dist/', import.meta.url));
+const PACKAGE_JSON = new URL('../package.json', import.meta.url);
 const BUNDLED_DAEMON = new URL('../dist/daemon.js', import.meta.url);
 const DAEMON_SOURCE = new URL('../daemon/src/index.ts', import.meta.url);
 
@@ -50,12 +51,13 @@ switch (command) {
 async function startDaemon() {
   if (process.env.HERDR_ENV !== '1') {
     console.error(
-      'herdr design mode must be started from a pane in your herdr session (HERDR_ENV=1 was not found).',
+      'Nudge must be started from a pane in your herdr session (HERDR_ENV=1 was not found).',
     );
     process.exit(1);
   }
 
-  process.env.HERDR_DESIGN_MODE_DIST ??= EXTENSION_DIR;
+  process.env.NUDGE_DIST ??= EXTENSION_DIR;
+  process.env.NUDGE_VERSION ??= await readVersion();
 
   if (await exists(BUNDLED_DAEMON)) {
     await import(BUNDLED_DAEMON.href);
@@ -77,7 +79,7 @@ async function startDaemon() {
 /**
  * Chrome cannot install this from a URL, so the path is the deliverable.
  *
- * It is printed on its own line, unadorned, so `herdr-design-mode extension`
+ * It is printed on its own line, unadorned, so `nudge-mode extension`
  * can be piped straight into `pbcopy` while the instructions go to stderr.
  */
 async function printExtensionPath() {
@@ -96,6 +98,16 @@ async function printExtensionPath() {
   console.log(EXTENSION_DIR);
 }
 
+/** The package version for the banner, or empty when package.json cannot be read. */
+async function readVersion() {
+  try {
+    const manifest = JSON.parse(await readFile(PACKAGE_JSON, 'utf8'));
+    return typeof manifest.version === 'string' ? manifest.version : '';
+  } catch {
+    return '';
+  }
+}
+
 async function exists(target) {
   try {
     await access(target);
@@ -107,6 +119,6 @@ async function exists(target) {
 
 function printUsage() {
   console.error('Usage:');
-  console.error('  herdr-design-mode              Start the daemon (inside a herdr pane)');
-  console.error('  herdr-design-mode extension    Print the directory to load unpacked in Chrome');
+  console.error('  nudge-mode              Start the daemon (inside a herdr pane)');
+  console.error('  nudge-mode extension    Print the directory to load unpacked in Chrome');
 }

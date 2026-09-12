@@ -21,7 +21,7 @@ const agent: HerdrAgent = {
 const record: PickRecord = {
   pickId: 'pick-1',
   paneId: 'w1:p1',
-  notePath: '/tmp/herdr-picks/pick-1/note.md',
+  notePath: '/tmp/nudge-picks/pick-1/note.md',
   sessionId: 'session-a',
   baseSeq: 10,
   followUps: 0,
@@ -93,7 +93,7 @@ test('status rehydrates a review from pick.json after a restart', async () => {
         status: 'queued',
         seq: 0,
         followUps: 0,
-        notePath: '/tmp/herdr-picks/pick-1/note.md',
+        notePath: '/tmp/nudge-picks/pick-1/note.md',
       },
     });
     assert.equal(tracker.get('pick-1')?.baseSeq, 10);
@@ -162,7 +162,7 @@ test('follow-up appends, prompts, rearms the tracker and updates the record', as
       return { ok: true, value: undefined };
     },
     writePickRecord: async (directory, next) => {
-      assert.equal(directory, '/tmp/herdr-picks/pick-1');
+      assert.equal(directory, '/tmp/nudge-picks/pick-1');
       saved = next;
       return { ok: true, value: undefined };
     },
@@ -170,10 +170,10 @@ test('follow-up appends, prompts, rearms the tracker and updates the record', as
   try {
     assert.deepEqual(await handle(followUpContext({ pickId: 'pick-1', comment: 'Darker, please.' })), {
       status: 200,
-      body: { pickId: 'pick-1', followUp: 3, notePath: '/tmp/herdr-picks/pick-1/note.md' },
+      body: { pickId: 'pick-1', followUp: 3, notePath: '/tmp/nudge-picks/pick-1/note.md' },
     });
     assert.deepEqual(prompts, [
-      'w1:p1: Browser review follow-up 3 — read the "## Follow-up 3" section at the end of @/tmp/herdr-picks/pick-1/note.md and address it.',
+      'w1:p1: Browser review follow-up 3 — read the "## Follow-up 3" section at the end of @/tmp/nudge-picks/pick-1/note.md and address it.',
     ]);
 
     const tracked = tracker.get('pick-1');

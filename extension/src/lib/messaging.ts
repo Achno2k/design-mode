@@ -166,7 +166,7 @@ export interface DesignModeState {
 }
 
 const STALE =
-  'This page is running an old copy of design mode. Reload the page to pick up the new one.';
+  'This page is running an old copy of Nudge. Reload the page to pick up the new one.';
 
 /**
  * Whether this script still belongs to the installed extension.
@@ -330,7 +330,7 @@ export async function askContent(
     // Thrown when no content script is listening, which happens both on pages
     // the extension does not cover and on tabs that were already open when it
     // was installed. The caller decides whether to inject and retry.
-    return fail('No design mode on this page yet.');
+    return fail('Nudge is not on this page yet.');
   }
 }
 

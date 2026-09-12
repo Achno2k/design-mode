@@ -27,7 +27,8 @@ export function watchBuild(
     clearTimeout(settle);
     settle = setTimeout(() => {
       revision += 1;
-      log.info(`Extension rebuilt (revision ${revision})`);
+      // One line that counts up, rather than a line per save in watch mode.
+      log.info(`Extension rebuilt (revision ${revision})`, { replaceKey: 'rebuild' });
       finishWaiters(waiters, revision);
     }, SETTLE_MS);
   };

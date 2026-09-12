@@ -31,7 +31,7 @@ export async function relayFrameEvent(
     await chrome.tabs.sendMessage(tabId, request, { frameId: 0 });
     return ok(true);
   } catch {
-    return fail('The top page is not running design mode.');
+    return fail('The top page is not running Nudge.');
   }
 }
 
@@ -54,6 +54,6 @@ export async function relayFrameCommand(
       | undefined;
     return answer ?? fail('That frame did not answer.');
   } catch {
-    return fail('That frame is not running design mode.');
+    return fail('That frame is not running Nudge.');
   }
 }

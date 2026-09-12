@@ -21,7 +21,7 @@ function agent(overrides: Partial<HerdrAgent> = {}): HerdrAgent {
 const pick = {
   pickId: 'pick-1',
   paneId: 'w1:p1',
-  notePath: '/tmp/herdr-picks/pick-1/note.md',
+  notePath: '/tmp/nudge-picks/pick-1/note.md',
   sessionId: 'session-a',
   baseSeq: 10,
   followUps: 0,

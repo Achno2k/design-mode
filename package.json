@@ -1,7 +1,7 @@
 {
-  "name": "herdr-design-mode",
-  "version": "0.3.1",
-  "description": "Select components on a local dev server, comment on them, and send them to the herdr agent working on that project.",
+  "name": "nudge-mode",
+  "version": "0.4.0",
+  "description": "Design mode for herdr. Select components on a local dev server, comment on them, and send them to the herdr agent working on that project.",
   "license": "MIT",
   "type": "module",
   "repository": {
@@ -13,6 +13,7 @@
   },
   "homepage": "https://github.com/Achno2k/design-mode#readme",
   "keywords": [
+    "nudge",
     "herdr",
     "chrome-extension",
     "design-mode",
@@ -24,7 +25,8 @@
     "node": ">=20.0.0"
   },
   "bin": {
-    "herdr-design-mode": "bin/herdr-design-mode.mjs"
+    "nudge-mode": "bin/nudge.mjs",
+    "nudge": "bin/nudge.mjs"
   },
   "files": [
     "bin",

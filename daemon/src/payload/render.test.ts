@@ -141,13 +141,13 @@ test('summarizes a drawing without dumping sampled points', () => {
 });
 
 test('the prompt points at the note rather than inlining it', () => {
-  const prompt = renderPrompt('/tmp/herdr-picks/x/note.md', 2, 'http://localhost:3000', true);
-  assert.match(prompt, /@\/tmp\/herdr-picks\/x\/note\.md/);
+  const prompt = renderPrompt('/tmp/nudge-picks/x/note.md', 2, 'http://localhost:3000', true);
+  assert.match(prompt, /@\/tmp\/nudge-picks\/x\/note\.md/);
   assert.match(prompt, /2 selections/);
 });
 
 test('the prompt describes a general page note when there are no selections', () => {
-  const prompt = renderPrompt('/tmp/herdr-picks/x/note.md', 0, 'http://localhost:3000', false);
+  const prompt = renderPrompt('/tmp/nudge-picks/x/note.md', 0, 'http://localhost:3000', false);
   assert.match(prompt, /general page note/);
   assert.doesNotMatch(prompt, /0 selections/);
   assert.match(prompt, /address it\./);

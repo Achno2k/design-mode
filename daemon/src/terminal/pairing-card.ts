@@ -1,0 +1,53 @@
+import { stripVTControlCharacters } from 'node:util';
+
+import { gradientText, type Paint } from './paint.ts';
+import { palette } from './palette.ts';
+
+const MARGIN = '  ';
+const PADDING = 3;
+const TITLE = 'pair the extension';
+const EXTENSION_COMMAND = 'npx nudge-mode extension';
+
+/**
+ * The pairing code and the two steps that use it, boxed where the terminal is
+ * wide enough and bare where it is not. The code stays one unbroken word so a
+ * double-click selects all of it; grouping it would paste spaces into the popup.
+ */
+export function renderPairingCard(token: string, paint: Paint, columns: number): string[] {
+  const body = cardBody(token, paint);
+  const inner = Math.max(...body.map(visibleWidth)) + PADDING * 2;
+  if (MARGIN.length + inner + 2 > columns) return body.map((row) => MARGIN + row);
+  return frame(body, inner, paint);
+}
+
+function cardBody(token: string, paint: Paint): string[] {
+  const muted = (text: string): string => paint.fg(palette.muted, text);
+  const step = (label: string): string => paint.bold(paint.fg(palette.accent, label));
+  return [
+    '',
+    muted('pairing code'),
+    paint.bold(gradientText(token, paint, palette.gradient)),
+    '',
+    `${step('1')}  Load the extension in Chrome`,
+    `   ${muted('$')} ${paint.fg(palette.text, EXTENSION_COMMAND)}`,
+    `   ${muted('then Load unpacked that folder in chrome://extensions')}`,
+    `${step('2')}  Paste the code into the extension popup`,
+    '',
+  ];
+}
+
+function frame(body: string[], inner: number, paint: Paint): string[] {
+  const border = (text: string): string => paint.fg(palette.border, text);
+  const title = ` ${paint.fg(palette.accent, TITLE)} `;
+  const top = border('╭─') + title + border(`${'─'.repeat(inner - TITLE.length - 3)}╮`);
+  const rows = body.map((row) => {
+    const fill = ' '.repeat(inner - PADDING - visibleWidth(row));
+    return `${border('│')}${' '.repeat(PADDING)}${row}${fill}${border('│')}`;
+  });
+  const bottom = border(`╰${'─'.repeat(inner)}╯`);
+  return [top, ...rows, bottom].map((row) => MARGIN + row);
+}
+
+function visibleWidth(text: string): number {
+  return stripVTControlCharacters(text).length;
+}

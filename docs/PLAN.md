@@ -30,7 +30,7 @@ agent session you were last working in.
 │   daemon fetches         │        │        ▼                    │
 │                          │        │   lsof :3000 → project dir  │
 │ popup (Preact)           │        │   herdr agent list → pick   │
-│   target picker          │        │   write /tmp/herdr-picks/…  │
+│   target picker          │        │   write /tmp/nudge-picks/…  │
 └──────────────────────────┘        │   herdr agent prompt <pane> │
                                      └─────────────────────────────┘
 ```
@@ -179,7 +179,7 @@ interface SendResponse { pickId: string; notePath: string; paneId: string; }
 
 ## 6. Generated prompt
 
-`/tmp/herdr-picks/<pickId>/note.md`:
+`/tmp/nudge-picks/<pickId>/note.md`:
 
 ```md
 # Browser review — http://localhost:3000/tools/wallet
@@ -197,7 +197,7 @@ interface SendResponse { pickId: string; notePath: string; paneId: string; }
 Injected as:
 
 ```
-herdr agent prompt w2:p1H "Browser review — 2 selections. Read @/tmp/herdr-picks/<id>/note.md and address each comment."
+herdr agent prompt w2:p1H "Browser review — 2 selections. Read @/tmp/nudge-picks/<id>/note.md and address each comment."
 ```
 
 Short prompt, details in the file. Keeps the agent's context clean and lets it

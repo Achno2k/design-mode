@@ -24,8 +24,8 @@ import { THEME_CSS } from '../overlay/styles/theme.ts';
  * and the screenshot.
  */
 
-const HOST_ID = 'herdr-design-mode-frame';
-const DESTROY_EVENT = 'herdr-design-mode-frame-destroy';
+const HOST_ID = 'nudge-frame';
+const DESTROY_EVENT = 'nudge-frame-destroy';
 
 interface FrameAgent {
   onCommand(command: FrameCommand): Promise<Answer<FrameCommandResult>>;

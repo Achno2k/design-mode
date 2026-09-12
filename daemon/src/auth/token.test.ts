@@ -8,13 +8,13 @@ import { readOrCreateToken } from './token.ts';
 
 test('creates a private 32-character pairing token and reuses it', async () => {
   const scratch = await mkdtemp(join(tmpdir(), 'design-mode-token-'));
-  const tokenPath = join(scratch, '.herdr-design-mode', 'token');
+  const tokenPath = join(scratch, '.nudge', 'token');
 
   const created = await readOrCreateToken(tokenPath);
   assert.equal(created.ok, true);
   const token = created.ok ? created.value : '';
   assert.match(token, /^[0-9a-f]{32}$/);
-  assert.equal((await stat(join(scratch, '.herdr-design-mode'))).mode & 0o777, 0o700);
+  assert.equal((await stat(join(scratch, '.nudge'))).mode & 0o777, 0o700);
   assert.equal((await stat(tokenPath)).mode & 0o777, 0o600);
   assert.equal((await readFile(tokenPath, 'utf8')).trim(), token);
 

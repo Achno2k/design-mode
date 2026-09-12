@@ -1,10 +1,12 @@
 {
-  "name": "herdr-design-mode-daemon",
-  "version": "0.3.1",
+  "name": "nudge-daemon",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
   "description": "Bridges the browser extension to the herdr agent session that owns a dev server.",
-  "engines": { "node": ">=23.6" },
+  "engines": {
+    "node": ">=23.6"
+  },
   "scripts": {
     "start": "node src/index.ts",
     "dev": "node --watch src/index.ts",

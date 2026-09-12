@@ -14,21 +14,28 @@ export const config = {
   host: '127.0.0.1',
 
   /** Where selection payloads are written for the agent to read. */
-  picksDir: '/tmp/herdr-picks',
+  picksDir: '/tmp/nudge-picks',
 
   /**
    * Build output the daemon watches so the extension can reload itself.
    *
    * The published daemon is a single bundled file, so it cannot find the
-   * extension by walking up from its own source path. `bin/herdr-design-mode`
+   * extension by walking up from its own source path. `bin/nudge`
    * passes the directory instead: it is the one file that sits at the same
    * depth in a clone and in the package. The relative path is what `npm run
    * dev` uses, and `fileURLToPath` rather than `.pathname`, which would leave
    * %20 in a path containing a space.
    */
   distDir:
-    process.env.HERDR_DESIGN_MODE_DIST ??
+    process.env.NUDGE_DIST ??
     fileURLToPath(new URL('../../extension/dist', import.meta.url)),
+
+  /**
+   * Shown under the start-up banner. The published daemon is bundled and cannot
+   * read a package.json, so `bin/nudge` passes it; `npm run dev`
+   * gets npm's own variable.
+   */
+  version: process.env.NUDGE_VERSION ?? process.env.npm_package_version,
 
   /** How long a live-reload poll is held open before answering with no change. */
   buildPollMs: 25_000,

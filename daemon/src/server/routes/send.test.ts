@@ -66,8 +66,8 @@ test('rejects a blocked target before writing files or prompting', async () => {
         ok: true,
         value: {
           pickId: 'pick-1',
-          directory: '/tmp/herdr-picks/pick-1',
-          notePath: '/tmp/herdr-picks/pick-1/note.md',
+          directory: '/tmp/nudge-picks/pick-1',
+          notePath: '/tmp/nudge-picks/pick-1/note.md',
           hasScreenshots: false,
         },
       };
@@ -161,8 +161,8 @@ test('writes and prompts after scope revalidation passes, then follows the revie
       ok: true,
       value: {
         pickId: 'pick-1',
-        directory: '/tmp/herdr-picks/pick-1',
-        notePath: '/tmp/herdr-picks/pick-1/note.md',
+        directory: '/tmp/nudge-picks/pick-1',
+        notePath: '/tmp/nudge-picks/pick-1/note.md',
         hasScreenshots: false,
       },
     }),
@@ -181,10 +181,10 @@ test('writes and prompts after scope revalidation passes, then follows the revie
   assert.equal(tracked?.baseSeq, 41);
   assert.equal(tracked?.sessionId, 'session-a');
   assert.deepEqual(record, {
-    directory: '/tmp/herdr-picks/pick-1',
+    directory: '/tmp/nudge-picks/pick-1',
     pickId: 'pick-1',
     paneId: 'w1:p1',
-    notePath: '/tmp/herdr-picks/pick-1/note.md',
+    notePath: '/tmp/nudge-picks/pick-1/note.md',
     sessionId: 'session-a',
     baseSeq: 41,
     followUps: 0,

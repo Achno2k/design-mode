@@ -140,7 +140,7 @@ async function readSourceFromTab(
   } catch (cause) {
     // A page with a strict policy can refuse the injection; the review is still
     // useful without a source location, so this is reported as "none found".
-    console.warn('[design-mode] source lookup failed', cause);
+    console.warn('[nudge] source lookup failed', cause);
     return ok(null);
   }
 }
@@ -157,7 +157,7 @@ async function injectContentScript(tabId: number): Promise<Answer<true>> {
     await chrome.scripting.executeScript({ target: { tabId }, files: ['content.js'] });
     return ok(true);
   } catch {
-    return fail('Design mode only works on http://localhost pages.');
+    return fail('Nudge only works on http://localhost pages.');
   }
 }
 

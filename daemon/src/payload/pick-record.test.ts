@@ -9,7 +9,7 @@ import { isPickId, readPickRecord, writePickRecord, type PickRecord } from './pi
 const record: PickRecord = {
   pickId: 'pick-1',
   paneId: 'w1:p1',
-  notePath: '/tmp/herdr-picks/pick-1/note.md',
+  notePath: '/tmp/nudge-picks/pick-1/note.md',
   sessionId: 'session-a',
   baseSeq: 10,
   followUps: 0,
