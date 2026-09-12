@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Nudge · design mode for herdr</title>
+  <meta name="description" content="Click a component on a local dev server, write what is wrong, and the herdr agent already working in that repo gets a note with the crop, the selector and the styles.">
+  <link rel="icon" href="img/logo.svg" type="image/svg+xml">
+  <meta name="theme-color" content="#131313">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="nav">
+  <div class="wrap nav__inner">
+    <a class="nav__mark" href="#" aria-label="Nudge, top of page">
+      <img src="img/logo.svg" alt="" width="22" height="22">
+      <span>Nudge</span>
+      <span class="tag">design mode for herdr</span>
+    </a>
+    <nav class="nav__links" aria-label="Sections">
+      <a href="#demo">Demo</a>
+      <a href="#how">How it works</a>
+      <a href="#setup">Setup</a>
+      <a href="https://github.com/Achno2k/design-mode">Source</a>
+    </nav>
+    <a class="pill pill--white pill--sm" href="#setup">Get started</a>
+  </div>
+</header>
+
+<main id="main">
+
+  <section class="hero wrap" aria-labelledby="hero-title">
+    <h1 class="hero__title" id="hero-title">Click the component.<br>Your agent <em>gets the note</em>.</h1>
+    <div class="hero__actions">
+      <a class="pill pill--white" href="#setup">Get it running</a>
+      <a class="pill pill--dark" href="https://github.com/Achno2k/design-mode">Source</a>
+    </div>
+  </section>
+
+  <section class="wrap wrap--wide" id="demo" aria-label="Demo">
+    <div class="panel panel--video reveal" id="panel">
+      <video class="demo" controls playsinline preload="metadata" poster="img/poster.png" width="1604" height="1080">
+        <source src="video/demo.mp4" type="video/mp4">
+        A two minute walkthrough: turning Nudge on, selecting a card, writing the note, choosing the agent, and reloading to see the change.
+      </video>
+    </div>
+  </section>
+
+  <section class="section wrap" id="how" aria-label="How it works">
+    <div class="features">
+
+      <article class="feature reveal">
+        <div class="feature__text">
+          <h3 class="feature__title">Start the daemon</h3>
+          <p>One command in a herdr pane. It prints a pairing code, says where the extension lives so Chrome can load it, and then sits there listening on <code>127.0.0.1:8791</code> for the rest of the session. Everything the browser sends goes through it.</p>
+        </div>
+        <div class="feature__shot">
+          <div class="stage">
+            <div class="window window--mac">
+              <div class="window__bar"><span class="window__dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="window__title label">your-cool-terminal</span></div>
+              <div class="window__body window__body--dark"><img src="img/daemon.png" alt="The daemon in a terminal: a pixel NUDGE banner, the version line, a box with the pairing code and the two steps to pair, then log lines saying it is listening on 127.0.0.1:8791 and that it sent five selections to a pane." width="1470" height="766" loading="lazy"></div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="feature feature--flip reveal">
+        <div class="feature__text">
+          <h3 class="feature__title">Point and describe</h3>
+          <p>I turn it on, hover until the outline sits around the thing I mean, and click. While I hover, the children of the highlighted component get their own outlines, so I can tell a card from the grid it lives in before I commit. Then I write what is wrong and press Enter.</p>
+        </div>
+        <div class="feature__shot">
+          <div class="stage">
+            <div class="window">
+              <div class="window__bar"><span class="window__dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="window__url label">localhost:3000</span></div>
+              <div class="window__body"><img src="img/select.png" alt="A pricing card highlighted in the overlay with a chip naming it article.card, and its heading, price and paragraph each outlined in their own colour." width="1140" height="810" loading="lazy"></div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="feature reveal">
+        <div class="feature__text">
+          <h3 class="feature__title">Nudge the styles</h3>
+          <p>The sliders button opens a live editor on the selected element. Anything I change there is applied to the page immediately, and the agent gets an exact before and after with the value as written in the stylesheet. So <code>var(--space-4)</code> arrives as <code>var(--space-4)</code>, not as 16px.</p>
+        </div>
+        <div class="feature__shot">
+          <div class="stage">
+            <div class="window">
+              <div class="window__bar"><span class="window__dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="window__url label">localhost:3000</span></div>
+              <div class="window__body"><img src="img/editor.png" alt="The composer with the live style editor open: text colour, background, opacity, font, size, weight and line height fields for the selected card." width="1140" height="810" loading="lazy"></div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="feature feature--flip reveal">
+        <div class="feature__text">
+          <h3 class="feature__title">It goes to the right pane</h3>
+          <p>The daemon works out which repo the dev server belongs to and which herdr pane is working inside it, writes a note with the crops, and prompts that agent. The tray names it, and the menu lists the others if it guessed wrong. When the agent is done, Reload and show outlines everything from that review, and Reply adds a follow-up to the same note.</p>
+        </div>
+        <div class="feature__shot">
+          <div class="stage">
+            <div class="window">
+              <div class="window__bar"><span class="window__dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="window__url label">localhost:3000</span></div>
+              <div class="window__body"><img src="img/agent.png" alt="The tray with the agent menu open, listing the herdr panes that could take this review with their status." width="840" height="560" loading="lazy"></div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+    </div>
+  </section>
+
+  <section class="section wrap wrap--prose" id="setup" aria-labelledby="setup-title">
+    <header class="section__head reveal">
+      <span class="label label--accent">02</span>
+      <h2 class="section__title" id="setup-title">Setup</h2>
+      <span class="section__rule" aria-hidden="true"></span>
+      <a class="label section__more" href="https://github.com/Achno2k/design-mode#readme">Full readme</a>
+    </header>
+    <p class="label requirements reveal">Node 23.6+<span class="dot">·</span>herdr on PATH<span class="dot">·</span>Chrome</p>
+
+    <div class="rows">
+
+      <article class="row reveal">
+        <div class="row__top"><h3 class="row__title">Start the daemon</h3><span class="label row__meta">01</span></div>
+        <p class="row__note">In a pane in the herdr session you want reviews sent to. It prints a pairing code, kept at <code>~/.nudge/token</code>.</p>
+        <figure class="term">
+          <div class="term__head">
+            <span class="term__glyph" aria-hidden="true">&gt;_</span>
+            <span class="term__label">Terminal</span>
+            <button class="copy" type="button" data-copy="npx nudge-mode" aria-label="Copy command">
+              <svg class="copy__icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M10.5 5.5V3.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>
+              <svg class="copy__check" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M3 8.5l3 3 7-7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </div>
+          <pre class="term__body"><code>npx nudge-mode</code></pre>
+        </figure>
+      </article>
+
+      <article class="row reveal">
+        <div class="row__top"><h3 class="row__title">Find the extension folder</h3><span class="label row__meta">02</span></div>
+        <p class="row__note">It is not on the Chrome Web Store, so Chrome loads it from disk. Ask the package where it lives.</p>
+        <figure class="term">
+          <div class="term__head">
+            <span class="term__glyph" aria-hidden="true">&gt;_</span>
+            <span class="term__label">Terminal</span>
+            <button class="copy" type="button" data-copy="npx nudge-mode extension" aria-label="Copy command">
+              <svg class="copy__icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M10.5 5.5V3.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>
+              <svg class="copy__check" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M3 8.5l3 3 7-7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </div>
+          <pre class="term__body"><code>npx nudge-mode extension</code></pre>
+        </figure>
+        <p class="row__note">Or straight onto the clipboard.</p>
+        <figure class="term">
+          <div class="term__head">
+            <span class="term__glyph" aria-hidden="true">&gt;_</span>
+            <span class="term__label">Terminal</span>
+            <button class="copy" type="button" data-copy="npx nudge-mode extension | pbcopy" aria-label="Copy command">
+              <svg class="copy__icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M10.5 5.5V3.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>
+              <svg class="copy__check" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M3 8.5l3 3 7-7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </div>
+          <pre class="term__body"><code>npx nudge-mode extension | pbcopy</code></pre>
+        </figure>
+      </article>
+
+      <article class="row reveal">
+        <div class="row__top"><h3 class="row__title">Load it</h3><span class="label row__meta">03</span></div>
+        <p class="row__note">Open the address below, turn on Developer mode, choose Load unpacked, and pick that folder.</p>
+        <figure class="term">
+          <div class="term__head">
+            <span class="term__glyph" aria-hidden="true">&gt;_</span>
+            <span class="term__label">Terminal</span>
+            <button class="copy" type="button" data-copy="chrome://extensions" aria-label="Copy address">
+              <svg class="copy__icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M10.5 5.5V3.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>
+              <svg class="copy__check" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M3 8.5l3 3 7-7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </div>
+          <pre class="term__body"><code>chrome://extensions</code></pre>
+        </figure>
+      </article>
+
+      <article class="row reveal">
+        <div class="row__top"><h3 class="row__title">Pair them</h3><span class="label row__meta">04</span></div>
+        <p class="row__note">Open the extension popup and paste the pairing code. Without it the daemon answers 401, on purpose. <a href="https://github.com/Achno2k/design-mode#why-pairing-exists">Why pairing exists</a> in the readme says why.</p>
+      </article>
+
+      <article class="row reveal">
+        <div class="row__top"><h3 class="row__title">From a clone</h3><span class="label row__meta">05</span></div>
+        <p class="row__note">Builds <code>dist/daemon.js</code> and <code>extension/dist</code>, then starts the daemon from the repo root.</p>
+        <figure class="term">
+          <div class="term__head">
+            <span class="term__glyph" aria-hidden="true">&gt;_</span>
+            <span class="term__label">Terminal</span>
+            <button class="copy" type="button" data-copy="npm install &amp;&amp; npm run build" aria-label="Copy command">
+              <svg class="copy__icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M10.5 5.5V3.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>
+              <svg class="copy__check" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M3 8.5l3 3 7-7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </div>
+          <pre class="term__body"><code>npm install &amp;&amp; npm run build</code></pre>
+        </figure>
+        <figure class="term">
+          <div class="term__head">
+            <span class="term__glyph" aria-hidden="true">&gt;_</span>
+            <span class="term__label">Terminal</span>
+            <button class="copy" type="button" data-copy="npx ." aria-label="Copy command">
+              <svg class="copy__icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M10.5 5.5V3.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>
+              <svg class="copy__check" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M3 8.5l3 3 7-7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </div>
+          <pre class="term__body"><code>npx .</code></pre>
+        </figure>
+      </article>
+
+    </div>
+  </section>
+
+  <section class="section wrap wrap--prose" id="daily" aria-labelledby="daily-title">
+    <header class="section__head reveal">
+      <span class="label label--accent">03</span>
+      <h2 class="section__title" id="daily-title">Day to day</h2>
+      <span class="section__rule" aria-hidden="true"></span>
+    </header>
+    <dl class="loop reveal" id="loop">
+      <div>
+        <dt><kbd>Alt</kbd><kbd>Shift</kbd><kbd>D</kbd></dt><dd>Turns Nudge on for the tab, same as Turn on in the popup. Chrome shows the shortcut it assigned there.</dd>
+        <dt><span class="key">hover</span></dt><dd>Highlights the component under the pointer. Its children are outlined too, each in its own colour.</dd>
+        <dt><span class="key">click</span></dt><dd>Selects it and opens the composer.</dd>
+        <dt><kbd>Enter</kbd></dt><dd>Sends the comment to the queue. <kbd>Shift</kbd><kbd>Enter</kbd> for a new line.</dd>
+        <dt><span class="key">Send</span></dt><dd>Writes the note and prompts the agent named in the tray. Its menu lists the others.</dd>
+      </div>
+      <div id="loop-more" hidden>
+        <dt><kbd>⌘</kbd><kbd>.</kbd></dt><dd>Toggles annotating on and off. <kbd>Ctrl</kbd><kbd>.</kbd> off macOS. Selections are kept.</dd>
+        <dt><kbd>Esc</kbd></dt><dd>Closes the composer, or stops annotating so the page behaves normally again.</dd>
+        <dt><span class="key key--warm">pen</span></dt><dd>Draws directly over the page. One or more strokes, click the pen again, then comment on the marked region.</dd>
+        <dt><span class="key">sliders</span></dt><dd>Opens the live style editor. Every change is applied on the page and sent as an exact before and after.</dd>
+        <dt><span class="key">note</span></dt><dd>An optional page note in the tray. It can go with the selections or on its own.</dd>
+        <dt><span class="key">Reload and show</span></dt><dd>Once the agent is done, reloads the page and outlines every element from that review.</dd>
+        <dt><span class="key">Reply</span></dt><dd>Sends a follow-up that points at the same note.</dd>
+      </div>
+    </dl>
+    <button type="button" class="pill pill--dark pill--sm loop__toggle" id="loop-toggle" aria-expanded="false" aria-controls="loop-more">More</button>
+  </section>
+
+
+</main>
+
+<footer class="footer">
+  <div class="wrap footer__inner">
+    <span>Nudge<span class="dot">·</span>MIT</span>
+    <span class="footer__links">
+      <a href="https://achno2k.dev">Built by Aman Singh ❤️</a>
+      <a href="https://github.com/Achno2k/design-mode">GitHub</a>
+      <a href="https://www.linkedin.com/in/amansingh0612">LinkedIn</a>
+    </span>
+  </div>
+</footer>
+
+<script src="main.js"></script>
+</body>
+</html>
