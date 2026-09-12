@@ -1,6 +1,6 @@
 {
   "name": "nudge-mode",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "description": "Design mode for herdr. Select components on a local dev server, comment on them, and send them to the herdr agent working on that project.",
   "license": "MIT",
   "type": "module",
