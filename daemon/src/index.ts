@@ -53,14 +53,26 @@ async function main(): Promise<void> {
     log.ready(`Listening on http://${config.host}:${config.port}`);
   });
 
+  // `server.close` waits for every open connection, and the extension keeps
+  // long polls open on /build and /pick, so on its own it never finishes: each
+  // Ctrl+C just logged again. Idle and in-flight connections are cut, a short
+  // fallback exits regardless, and a second signal exits at once.
+  let stopping = false;
   for (const signal of ['SIGINT', 'SIGTERM'] as const) {
     process.on(signal, () => {
+      if (stopping) process.exit(0);
+      stopping = true;
       log.info('Shutting down.');
       builds.stop();
       picks.stop();
       server.close(() => process.exit(0));
+      server.closeAllConnections();
+      setTimeout(() => process.exit(0), SHUTDOWN_GRACE_MS).unref();
     });
   }
 }
+
+/** How long a close may take before the process exits anyway. */
+const SHUTDOWN_GRACE_MS = 1_000;
 
 void main();

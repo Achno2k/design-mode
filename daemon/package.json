@@ -1,6 +1,6 @@
 {
   "name": "nudge-daemon",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "private": true,
   "type": "module",
   "description": "Bridges the browser extension to the herdr agent session that owns a dev server.",
