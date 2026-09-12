@@ -1,14 +1,21 @@
-import type { Target } from '../lib/protocol.ts';
+import type { AgentStatus, Target } from '../lib/protocol.ts';
 import { fill, make } from './dom.ts';
-import { CHEVRON_ICON } from './icons.ts';
+import { CHECK_ICON, CHEVRON_ICON, REFRESH_ICON } from './icons.ts';
 
-/** The agent chooser in the toolbar header. */
+/** The agent chooser in the toolbar. */
 export interface AgentPicker {
-  setTargets(targets: Target[], message?: string): void;
+  setTargets(targets: Target[]): void;
   selected(): Target | null;
+  /** Spin the refresh row while herdr is being asked again. */
+  setRefreshing(refreshing: boolean): void;
   /** Shut the menu — the toolbar does this before it moves. */
   close(): void;
   element(): HTMLElement;
+}
+
+export interface AgentPickerHandlers {
+  onChange(): void;
+  onRefresh(): void;
 }
 
 /**
@@ -18,9 +25,11 @@ export interface AgentPicker {
  * row, and on a page with two dozen agents an ungrouped list is unreadable — so
  * this is built out of buttons instead. Options are grouped by harness in the
  * order the harnesses first appear, which keeps the daemon's ranking intact:
- * its best guess stays at the top.
+ * its best guess stays at the top. Refreshing lives at the foot of the menu,
+ * next to the list it changes.
  */
-export function createAgentPicker(onChange: () => void): AgentPicker {
+export function createAgentPicker(handlers: AgentPickerHandlers): AgentPicker {
+  const dot = make('span', { className: 'dot dot--idle picker__dot' });
   const name = make('span', { className: 'picker__name' });
   const pane = make('span', { className: 'picker__pane' });
   const chevron = make('span', { className: 'picker__chevron' });
@@ -28,22 +37,41 @@ export function createAgentPicker(onChange: () => void): AgentPicker {
 
   const trigger = fill(
     make('button', {
-      className: 'picker__trigger',
-      attributes: { type: 'button', 'aria-haspopup': 'listbox', 'aria-expanded': 'false' },
+      className: 'pill pill--outline picker__trigger',
+      attributes: {
+        type: 'button',
+        title: 'Choose the agent that receives the review',
+        'aria-haspopup': 'listbox',
+        'aria-expanded': 'false',
+      },
     }),
+    dot,
     name,
     pane,
     chevron,
   );
 
-  const menu = make('div', { className: 'picker__menu', attributes: { role: 'listbox' } });
+  const filter = make('input', {
+    className: 'picker__filter',
+    attributes: { type: 'search', placeholder: 'Filter agents…', 'aria-label': 'Filter agents', hidden: '' },
+  });
+  const list = make('div', { className: 'picker__list', attributes: { role: 'listbox' } });
+  const refresh = make('button', {
+    className: 'picker__refresh',
+    attributes: { type: 'button', title: 'Ask herdr for the agents again' },
+  });
+  const refreshIcon = make('span', { className: 'picker__refresh-icon' });
+  refreshIcon.innerHTML = REFRESH_ICON;
+  fill(refresh, refreshIcon, make('span', { text: 'Refresh' }));
 
-  const root = fill(
-    make('div', { className: 'picker' }),
-    make('span', { className: 'picker__label', text: 'Agent' }),
-    trigger,
-    menu,
+  const total = make('span', { className: 'picker__total' });
+  const menu = fill(
+    make('div', { className: 'picker__menu', attributes: { 'data-drag-ignore': '' } }),
+    filter,
+    list,
+    fill(make('div', { className: 'picker__foot' }), total, make('span', { className: 'picker__foot-rule' }), refresh),
   );
+  const root = fill(make('div', { className: 'picker' }), trigger, menu);
 
   let targets: Target[] = [];
   let selectedPaneId: string | null = null;
@@ -67,6 +95,9 @@ export function createAgentPicker(onChange: () => void): AgentPicker {
       menu.classList.toggle('picker__menu--below', trigger.getBoundingClientRect().top < 320);
       watchOutsidePresses(true);
       window.addEventListener('keydown', onMenuKeyDown, true);
+      filter.value = '';
+      applyFilter();
+      if (!filter.hidden) filter.focus();
     } else {
       watchOutsidePresses(false);
       window.removeEventListener('keydown', onMenuKeyDown, true);
@@ -122,72 +153,123 @@ export function createAgentPicker(onChange: () => void): AgentPicker {
     setOpen(false);
     showTrigger();
     markSelected();
-    onChange();
+    handlers.onChange();
   }
 
   function showTrigger(): void {
     const target = current();
+    dot.className = `dot dot--${target?.status ?? 'idle'} picker__dot`;
+    dot.hidden = target === null;
     name.textContent = target?.label ?? '';
     pane.textContent = target?.paneId ?? '';
     pane.hidden = target === null;
   }
 
   function markSelected(): void {
-    for (const option of menu.querySelectorAll('.picker__option')) {
-      const chosen = option.getAttribute('data-pane-id') === selectedPaneId;
-      option.classList.toggle('picker__option--on', chosen);
-      option.setAttribute('aria-selected', String(chosen));
+    for (const row of list.querySelectorAll('.picker__row')) {
+      const chosen = row.getAttribute('data-pane-id') === selectedPaneId;
+      row.classList.toggle('picker__row--on', chosen);
+      row.setAttribute('aria-selected', String(chosen));
     }
   }
 
   function buildMenu(): void {
-    const groups = groupByHarness(targets);
-    let index = 0;
-
-    menu.replaceChildren(
-      ...groups.map((group) =>
+    list.replaceChildren(
+      ...groupByHarness(targets).map((group) =>
         fill(
           make('div', { className: 'picker__group' }),
-          make('div', { className: 'picker__harness', text: group.harness }),
-          ...group.targets.map((target) => option(target, index++)),
+          fill(
+            make('div', { className: 'picker__harness' }),
+            make('span', { text: group.harness }),
+            make('span', { className: 'picker__count', text: String(group.targets.length) }),
+          ),
+          ...group.targets.map(row),
         ),
       ),
     );
+    total.textContent = `${targets.length} agent${targets.length === 1 ? '' : 's'}`;
+    // A short list is scanned faster than it is typed at.
+    filter.hidden = targets.length <= FILTER_FROM;
   }
 
-  /** Rows fade in one after another, which reads as the menu unrolling. */
-  function option(target: Target, index: number): HTMLElement {
+  /**
+   * Name and pane on the left, a status chip on the right, and a lane for the
+   * check beyond it that every row keeps, so the chips line up in a column.
+   * The chosen row's chip lights up; the others stay grey unless the agent is
+   * busy or blocked, which is worth a colour of its own.
+   */
+  function row(target: Target): HTMLElement {
+    const check = make('span', { className: 'picker__check' });
+    check.innerHTML = CHECK_ICON;
     const button = fill(
       make('button', {
-        className: 'picker__option',
-        attributes: { type: 'button', role: 'option', 'data-pane-id': target.paneId },
+        className: 'picker__row',
+        attributes: {
+          type: 'button',
+          role: 'option',
+          'data-pane-id': target.paneId,
+          'data-search': `${target.label} ${target.paneId} ${target.agent}`.toLowerCase(),
+          title: target.label,
+        },
       }),
-      make('span', { className: `dot dot--${target.status}` }),
-      make('span', { className: 'picker__option-name', text: target.label }),
-      make('span', { className: 'picker__option-pane', text: target.paneId }),
+      fill(
+        make('span', { className: 'picker__row-body' }),
+        make('span', { className: 'picker__row-name', text: target.label }),
+        make('span', { className: 'picker__row-meta', text: target.paneId }),
+      ),
+      fill(
+        make('span', { className: `picker__chip picker__chip--${target.status}` }),
+        make('span', { className: 'picker__chip-dot' }),
+        make('span', { text: describeStatus(target.status) }),
+      ),
+      check,
     );
-
-    button.style.setProperty('--stagger', `${Math.min(index, 8) * 18}ms`);
     button.addEventListener('click', () => choose(target.paneId));
     return button;
+  }
+
+  /** Hide rows that do not match, and any harness left with nothing to show. */
+  function applyFilter(): void {
+    const needle = filter.value.trim().toLowerCase();
+    for (const group of list.querySelectorAll<HTMLElement>('.picker__group')) {
+      let shown = 0;
+      for (const option of group.querySelectorAll<HTMLElement>('.picker__row')) {
+        const match = needle === '' || (option.dataset.search ?? '').includes(needle);
+        option.hidden = !match;
+        if (match) shown += 1;
+      }
+      group.hidden = shown === 0;
+    }
+  }
+
+  filter.addEventListener('input', applyFilter);
+  // Typing into the filter must reach neither the page nor the session's keys.
+  for (const type of ['keydown', 'keypress', 'keyup'] as const) {
+    filter.addEventListener(type, (event) => {
+      if (type === 'keydown' && event.key === 'Escape') return;
+      event.stopPropagation();
+    });
   }
 
   trigger.addEventListener('click', () => {
     if (targets.length === 0) return;
     setOpen(!open);
   });
+  refresh.addEventListener('click', () => handlers.onRefresh());
 
   return {
-    setTargets(next, message) {
+    setTargets(next) {
       targets = next;
       trigger.disabled = next.length === 0;
 
+      // The reason is the status line's to tell; the trigger only says that
+      // there is nothing to choose from.
       if (next.length === 0) {
         setOpen(false);
         selectedPaneId = null;
-        menu.replaceChildren();
-        name.textContent = message ?? 'No agent found for this page';
-        pane.hidden = true;
+        list.replaceChildren();
+        showTrigger();
+        name.textContent = 'No agent';
         return;
       }
 
@@ -200,9 +282,31 @@ export function createAgentPicker(onChange: () => void): AgentPicker {
     },
 
     selected: current,
+    setRefreshing(refreshing) {
+      refresh.disabled = refreshing;
+      refresh.classList.toggle('picker__refresh--busy', refreshing);
+    },
     close: () => setOpen(false),
     element: () => root,
   };
+}
+
+/** Lists longer than this get a filter field at the top of the menu. */
+const FILTER_FROM = 6;
+
+function describeStatus(status: AgentStatus): string {
+  switch (status) {
+    case 'idle':
+      return 'Idle';
+    case 'working':
+      return 'Working';
+    case 'blocked':
+      return 'Blocked';
+    case 'done':
+      return 'Done';
+    case 'unknown':
+      return 'Unknown';
+  }
 }
 
 /** Agents of the same harness, in the order the harnesses first appear. */

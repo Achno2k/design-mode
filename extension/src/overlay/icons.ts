@@ -25,7 +25,12 @@ export const ANNOTATE_ICON = WRAP(
 /** Chevron pointing down — collapse toggles and select controls. */
 export const CHEVRON_ICON = WRAP('<path d="M6 9l6 6 6-6"/>');
 
-/** Arrow rising out of the bar — the send affordance. */
-export const ARROW_UP_ICON = WRAP('<path d="M12 19V5"/><path d="M5.5 11.5L12 5l6.5 6.5"/>');
+/** Arrow leaving towards the top right — the send affordance. */
+export const ARROW_UP_RIGHT_ICON = WRAP('<path d="M7 17L17 7"/><path d="M8.5 7H17v8.5"/>');
+
+/** A small bin, for throwing the whole queue away. */
+export const TRASH_ICON = WRAP(
+  '<path d="M4 7h16"/><path d="M9.5 7V4.5h5V7"/><path d="M6.5 7l.8 12.2A1 1 0 0 0 8.3 20h7.4a1 1 0 0 0 1-.8L17.5 7"/><path d="M10 11v5M14 11v5"/>',
+);
 
 export const CONSOLE_ICON = WRAP('<path d="M4 17l6-5-6-5"/><path d="M12 19h8"/>');

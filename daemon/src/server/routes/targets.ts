@@ -1,3 +1,4 @@
+import { basename } from 'node:path';
 import { listAgents } from '../../herdr/client.ts';
 import type { Target } from '../../herdr/types.ts';
 import { resolveProjectScope } from '../../resolve/scope.ts';
@@ -32,7 +33,7 @@ export async function handleTargets({ url }: RouteContext): Promise<RouteResult>
 
   if (candidates.length === 0) {
     return json(200, {
-      ...nothingFound(`No herdr agent is working in ${project.value.scope}.`),
+      ...nothingFound(`No herdr agent is working in ${basename(project.value.scope)}.`),
       projectDir: project.value.projectDir,
       scope: project.value.scope,
       source: 'lsof',

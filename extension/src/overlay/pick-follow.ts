@@ -97,7 +97,7 @@ export function createPickFollow(deps: PickFollowDeps): PickFollow {
     const { found, total } = findSentItems(pick.items, window.location.href);
     outlines.show(found);
     if (total === 0) {
-      tray.setStatus('None of the sent items belong to this page.', 'idle');
+      tray.setStatus('None of the sent items belong to this page.', 'busy');
     } else {
       tray.setStatus(`Showing ${found.length} of ${total} sent item${total === 1 ? '' : 's'}.`, 'success');
     }

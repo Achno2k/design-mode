@@ -86,7 +86,24 @@ export function readValue(element: Element, property: EditableProperty): string 
   const raw = window.getComputedStyle(element).getPropertyValue(property.property).trim();
   if (raw === '' || UNSET.has(raw)) return '';
 
+  if (property.kind === 'color') return readableColor(raw);
   return property.unit === undefined ? raw : stripUnit(raw, property.unit);
+}
+
+/**
+ * Computed colours come back as `rgb()`, which nobody writes by hand. Opaque
+ * ones are shown as the hex the swatch already speaks; a fully transparent one
+ * is "nothing set", and anything else — translucent, wide gamut — is left as
+ * the browser gave it, since a hex would lose information.
+ */
+function readableColor(raw: string): string {
+  const match = raw.match(/^rgba?\(([^)]+)\)$/);
+  if (match === null) return raw;
+
+  const channels = (match[1] ?? '').split(/[\s,/]+/).filter((part) => part !== '');
+  const alpha = channels.length > 3 ? Number(channels[3]) : 1;
+  if (alpha === 0) return '';
+  return alpha < 1 ? raw : toHex(raw);
 }
 
 /** Apply a value to the element immediately, as an inline style. */

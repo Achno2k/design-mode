@@ -18,10 +18,12 @@ export const COMPOSER_CSS = `
   --label: rgba(255, 255, 255, 0.56);
   --value: rgba(255, 255, 255, 0.86);
 
+  /* Above the toolbar, which is appended later and would otherwise paint over it. */
+  z-index: 1;
   display: flex;
   flex-direction: column;
   width: 380px;
-  max-height: min(560px, calc(100vh - 40px));
+  max-height: min(560px, calc(100vh - 24px));
   background: #2b2b2b;
   border: 1px solid var(--line);
   border-radius: 20px;
@@ -70,8 +72,8 @@ export const COMPOSER_CSS = `
   background: rgba(0, 0, 0, 0.22);
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
-  font-size: 14px;
-  line-height: 19px;
+  font-size: 13px;
+  line-height: 18px;
   font-weight: 650;
   letter-spacing: 0.01em;
   overflow: hidden;
@@ -121,7 +123,7 @@ export const COMPOSER_CSS = `
 .editor__label {
   flex: none;
   width: 32%;
-  font-size: 14px;
+  font-size: 13px;
   line-height: 20px;
   color: var(--label);
   white-space: nowrap;

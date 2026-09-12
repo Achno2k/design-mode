@@ -1,6 +1,6 @@
 import type { ItemTriage, SelectionBox, StyleChange, TextChange } from '../lib/protocol.ts';
 import { createBoxModel } from './box-model.ts';
-import { fill, keepScrollInside, make, placeNear } from './dom.ts';
+import { fill, keepScrollInside, make, placeNear, roomBeside, type Side } from './dom.ts';
 import { CHECK_ICON, SLIDERS_ICON } from './icons.ts';
 import { createStyleEditor, type CommittedStyleEdits } from './style-editor.ts';
 import { createTriageControl } from './triage-control.ts';
@@ -50,8 +50,8 @@ export interface Composer {
 }
 
 export interface ComposerOptions {
-  /** Space along the bottom the toolbar is using, read at placement time. */
-  reservedBottom(): number;
+  /** Where the toolbar is right now, read at placement time; `null` when it is away. */
+  avoid(): DOMRect | null;
 }
 
 /**
@@ -96,7 +96,10 @@ export function createComposer(layer: HTMLElement, options: ComposerOptions): Co
   editorPanel.hidden = true;
 
   const panel = fill(
-    make('div', { className: 'panel composer', attributes: { hidden: '' } }),
+    make('div', {
+      className: 'panel composer',
+      attributes: { hidden: '', role: 'dialog', 'aria-label': 'Describe these changes' },
+    }),
     fill(make('div', { className: 'composer__prompt' }), expand, input),
     identity,
     editorPanel,
@@ -105,7 +108,14 @@ export function createComposer(layer: HTMLElement, options: ComposerOptions): Co
   keepScrollInside(panel);
   layer.append(panel);
 
-  let anchor: Element | SelectionBox | null = null;
+  // Where the panel sits. Read when it opens and again when the page scrolls,
+  // never on a keystroke: an element still animating into place would
+  // otherwise pull the panel along with every character typed.
+  let anchor: DOMRect | null = null;
+  /** The drawing box the panel opened on, so a draft can be matched to it. */
+  let boxKey: string | null = null;
+  /** Which side of the anchor the panel is on, kept across repositions. */
+  let side: Side | undefined;
   let target: Element | null = null;
   let editorAttached = false;
   let onSubmit: ((draft: Draft) => void) | null = null;
@@ -123,9 +133,7 @@ export function createComposer(layer: HTMLElement, options: ComposerOptions): Co
 
   /** What the composer is open on, so a draft can be matched to it later. */
   function draftKey(): StashKey | null {
-    if (target !== null) return target;
-    if (anchor === null || anchor instanceof Element) return null;
-    return JSON.stringify(anchor);
+    return target ?? boxKey;
   }
 
   /** Remember what was typed, so an accidental Escape costs nothing. */
@@ -184,6 +192,8 @@ export function createComposer(layer: HTMLElement, options: ComposerOptions): Co
     input.value = '';
     resize();
     anchor = null;
+    boxKey = null;
+    side = undefined;
     target = null;
     editorAttached = false;
     onSubmit = null;
@@ -197,6 +207,7 @@ export function createComposer(layer: HTMLElement, options: ComposerOptions): Co
     tag.textContent = next.tag;
     detail.textContent = next.detail;
     detail.hidden = next.detail === '';
+    panel.setAttribute('aria-label', `Describe changes to ${next.tag} ${next.detail}`.trim());
   }
 
   function toggleEditor(): void {
@@ -214,15 +225,40 @@ export function createComposer(layer: HTMLElement, options: ComposerOptions): Co
     reposition();
   }
 
-  /** Keep the panel beside its element and clear of the toolbar. */
+  /**
+   * Keep the panel where it opened and clear of the toolbar.
+   *
+   * The height is capped first: with the editor open the panel can be taller
+   * than the band left beside a docked toolbar, and a panel that cannot fit
+   * anywhere would otherwise be dropped on top of it. It scrolls instead.
+   */
   function reposition(): void {
     if (anchor === null) return;
-    const box =
-      anchor instanceof Element
-        ? anchor.getBoundingClientRect()
-        : new DOMRect(anchor.x, anchor.y, anchor.width, anchor.height);
-    placeNear(panel, box, { reservedBottom: options.reservedBottom() });
+    const avoid = options.avoid();
+    const room = roomBeside(anchor, panel.getBoundingClientRect().width, avoid);
+    panel.style.maxHeight = `${Math.max(MIN_HEIGHT, Math.min(MAX_HEIGHT, room))}px`;
+    side = placeNear(panel, anchor, { avoid, prefer: side });
   }
+
+  /**
+   * The page moved under the panel. An element anchor is measured again so the
+   * panel stays beside it; a box anchor is a region of the viewport, which the
+   * drawing ink and the tray row both are, so it stays where it is.
+   */
+  function follow(): void {
+    // Re-injection replaces the whole overlay; the old panel lets go here.
+    if (!panel.isConnected) {
+      window.removeEventListener('scroll', follow, true);
+      window.removeEventListener('resize', follow);
+      return;
+    }
+    if (!isOpen()) return;
+    if (target !== null) anchor = target.getBoundingClientRect();
+    reposition();
+  }
+
+  window.addEventListener('scroll', follow, { capture: true, passive: true });
+  window.addEventListener('resize', follow);
 
   /** Grow the input with its content instead of showing a scrollbar. */
   function resize(): void {
@@ -290,7 +326,9 @@ export function createComposer(layer: HTMLElement, options: ComposerOptions): Co
     open(element, next, handler, dismissed, initial) {
       // Opening straight onto another element is a close in all but name.
       if (isOpen()) keepDraft();
-      anchor = element;
+      anchor = element.getBoundingClientRect();
+      boxKey = null;
+      side = undefined;
       target = element;
       editorAttached = false;
       onSubmit = handler;
@@ -301,7 +339,9 @@ export function createComposer(layer: HTMLElement, options: ComposerOptions): Co
     openAt(box, next, handler, dismissed, initial) {
       if (isOpen()) keepDraft();
       editor.reset();
-      anchor = { ...box };
+      anchor = new DOMRect(box.x, box.y, box.width, box.height);
+      boxKey = JSON.stringify(box);
+      side = undefined;
       target = null;
       editorAttached = false;
       onSubmit = handler;
@@ -318,6 +358,10 @@ export function createComposer(layer: HTMLElement, options: ComposerOptions): Co
     return !panel.hasAttribute('hidden');
   }
 }
+
+/** The panel's own ceiling, and the least it shrinks to beside the toolbar. */
+const MAX_HEIGHT = 560;
+const MIN_HEIGHT = 200;
 
 /** A draft that was closed without submitting, and what it was written on. */
 type StashKey = Element | string;

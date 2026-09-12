@@ -121,10 +121,13 @@ export function makeDraggable(
   };
 }
 
-/** Presses that belong to a button, the agent picker, or the note. */
+/** Presses that belong to a control, or to a region that opted out with `data-drag-ignore`. */
 function startsOnControl(event: PointerEvent): boolean {
   const target = event.target;
-  return target instanceof Element && target.closest('button, select, input, textarea, a') !== null;
+  return (
+    target instanceof Element &&
+    target.closest('button, select, input, textarea, a, img, [data-drag-ignore]') !== null
+  );
 }
 
 function clamp(value: number, min: number, max: number): number {

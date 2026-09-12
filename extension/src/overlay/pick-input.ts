@@ -68,7 +68,7 @@ export function createPickInput(deps: PickInputDeps): PickInput {
   function pick(element: Element): void {
     current = element;
     // Stays outlined while its comment is written, but with no child boxes.
-    deps.highlight.pin(element, describeHover(element));
+    deps.highlight.pin(element);
     deps.onPick(element);
   }
 

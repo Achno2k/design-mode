@@ -61,7 +61,7 @@ export function createController(layer: HTMLElement, host: Element): Controller 
   const highlight = createHighlight(layer, host);
   // Reads the toolbar's footprint lazily: it can be dragged, so where it is
   // now says nothing about where it will be when a composer next opens.
-  const composer = createComposer(layer, { reservedBottom: () => tray.reservedBottom() });
+  const composer = createComposer(layer, { avoid: () => tray.footprint() });
   const selections: Selection[] = [];
   const styleEffects = createStyleEffects();
   let open = false;
@@ -275,7 +275,7 @@ export function createController(layer: HTMLElement, host: Element): Controller 
     composer.close();
     highlight.hide();
     drawing.enter();
-    tray.setStatus('Draw one or more strokes, then click the pen again.', 'idle');
+    tray.setStatus('Draw one or more strokes, then click the pen again.', 'idle', { sticky: true });
   }
 
   function finishDrawing(): void {
@@ -319,7 +319,7 @@ export function createController(layer: HTMLElement, host: Element): Controller 
     // the page rather than sitting there swallowing every click.
     if (!isContextAlive()) {
       setPicking(false);
-      tray.setTargets([], 'Reload the page — design mode was updated.');
+      tray.setTargets([], 'Reload the page — Nudge was updated.');
       return false;
     }
 

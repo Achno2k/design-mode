@@ -1,6 +1,6 @@
 import type { ItemTriage } from '../lib/protocol.ts';
 import { fill, keepScrollInside, make } from './dom.ts';
-import { CLOSE_ICON } from './icons.ts';
+import { CLOSE_ICON, TRASH_ICON } from './icons.ts';
 import { createTriageControl } from './triage-control.ts';
 
 /** One completed annotation, as the toolbar shows it back to the user. */
@@ -26,6 +26,8 @@ export interface AnnotationActions {
   onReselect(index: number): void;
   /** An empty triage means the item was cleared back to untriaged. */
   onSetTriage(index: number, triage: ItemTriage): void;
+  /** Drop every queued annotation. */
+  onClear(): void;
 }
 
 /** The card of pending annotations that floats above the toolbar. */
@@ -50,7 +52,19 @@ export interface AnnotationStack {
  */
 export function createAnnotationStack(actions: AnnotationActions): AnnotationStack {
   const list = make('div', { className: 'stack__list' });
-  const root = keepScrollInside(fill(make('div', { className: 'stack' }), list));
+  const clear = make('button', {
+    className: 'stack__clear',
+    attributes: { type: 'button', title: 'Remove every annotation', 'aria-label': 'Remove every annotation' },
+  });
+  clear.innerHTML = TRASH_ICON;
+  clear.addEventListener('click', () => actions.onClear());
+  const root = keepScrollInside(
+    fill(
+      make('div', { className: 'stack', attributes: { 'data-drag-ignore': '' } }),
+      list,
+      fill(make('div', { className: 'stack__foot' }), clear),
+    ),
+  );
 
   let open = false;
 

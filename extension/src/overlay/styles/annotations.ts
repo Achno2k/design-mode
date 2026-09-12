@@ -10,15 +10,16 @@ export const ANNOTATIONS_CSS = `
   position: absolute;
   left: 0;
   right: 0;
-  bottom: calc(100% + 8px);
-  max-height: 320px;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding: 4px;
-  border: 1px solid var(--hairline);
-  border-radius: var(--radius-tray);
-  background: var(--surface-container);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  bottom: calc(100% + 10px);
+  display: flex;
+  flex-direction: column;
+  max-height: 360px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-menu);
+  cursor: default;
   visibility: hidden;
   opacity: 0;
   transform: translateY(6px);
@@ -38,9 +39,29 @@ export const ANNOTATIONS_CSS = `
 .stack--below { bottom: auto; top: calc(100% + 8px); transform: translateY(-6px); }
 .stack--below.stack--open { transform: none; }
 
-.stack::-webkit-scrollbar { width: 6px; }
-.stack::-webkit-scrollbar-track { background: transparent; }
-.stack::-webkit-scrollbar-thumb { background: var(--outline-variant); border-radius: 3px; }
+.stack__list { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.stack__list::-webkit-scrollbar { width: 6px; }
+.stack__list::-webkit-scrollbar-track { background: transparent; }
+.stack__list::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 3px; }
+
+/* Destructive, so it sits with the list it empties rather than next to Send. */
+.stack__foot { flex: none; display: flex; justify-content: flex-end; padding: 4px 2px 0; }
+
+.stack__clear {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  transition: background 120ms, color 120ms;
+}
+.stack__clear svg { width: 14px; height: 14px; }
+.stack__clear:hover { background: rgba(255, 180, 171, 0.14); color: var(--error); }
 
 .stack__row {
   display: flex;
@@ -64,7 +85,7 @@ export const ANNOTATIONS_CSS = `
 }
 
 .stack__row:hover { background: rgba(255, 255, 255, 0.04); }
-.stack__row + .stack__row { border-top: 1px solid var(--hairline); }
+.stack__row + .stack__row { border-top: 1px solid var(--line); }
 
 /* The crop the agent will see, shown large enough to recognise the element. */
 .stack__shot {
@@ -180,10 +201,10 @@ export const ANNOTATIONS_CSS = `
 .triage { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; }
 
 .triage__chip {
-  padding: 2px 8px;
-  border: 1px dashed var(--outline-variant);
+  padding: 2px 9px;
+  border: 1px solid transparent;
   border-radius: var(--radius-pill);
-  background: transparent;
+  background: rgba(255, 255, 255, 0.06);
   color: var(--text-faint);
   font: inherit;
   font-size: 11px;
@@ -194,17 +215,17 @@ export const ANNOTATIONS_CSS = `
   transition: background 120ms, color 120ms, border-color 120ms;
 }
 
-.triage__chip:hover { color: var(--text); border-color: var(--outline); }
-.triage__chip--bug { border-style: solid; border-color: transparent; background: rgba(255, 180, 171, 0.16); color: var(--error); }
-.triage__chip--polish { border-style: solid; border-color: transparent; background: rgba(142, 213, 255, 0.16); color: var(--accent); }
-.triage__chip--question { border-style: solid; border-color: transparent; background: rgba(245, 194, 107, 0.16); color: var(--warning); }
-.triage__chip--bug:hover, .triage__chip--polish:hover, .triage__chip--question:hover { border-color: transparent; filter: brightness(1.15); }
+.triage__chip:hover { background: rgba(255, 255, 255, 0.1); color: var(--text); }
+.triage__chip--bug { background: rgba(255, 180, 171, 0.16); color: var(--error); }
+.triage__chip--polish { background: rgba(142, 213, 255, 0.16); color: var(--accent); }
+.triage__chip--question { background: rgba(245, 194, 107, 0.16); color: var(--warning); }
+.triage__chip--bug:hover, .triage__chip--polish:hover, .triage__chip--question:hover { filter: brightness(1.15); }
 
 .triage__priority {
-  padding: 2px 6px;
-  border: 1px dashed var(--outline-variant);
+  padding: 2px 8px;
+  border: 1px solid transparent;
   border-radius: var(--radius-pill);
-  background: transparent;
+  background: rgba(255, 255, 255, 0.06);
   color: var(--text-faint);
   font: inherit;
   font-size: 11px;
@@ -221,8 +242,8 @@ export const ANNOTATIONS_CSS = `
 .triage__priority--unset { display: none; }
 .triage:hover .triage__priority--unset, .triage:focus-within .triage__priority--unset { display: inline-block; }
 
-.triage__priority:hover { color: var(--text); border-color: var(--outline); }
+.triage__priority:hover { background: rgba(255, 255, 255, 0.1); color: var(--text); }
 .triage__priority:focus { outline: none; border-color: var(--accent); }
-.triage__priority--set { border-style: solid; border-color: var(--outline-variant); color: var(--text); }
+.triage__priority--set { background: rgba(255, 255, 255, 0.1); color: var(--text); }
 .triage__priority option { background: var(--surface-container); color: var(--text); }
 `;

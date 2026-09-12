@@ -62,6 +62,7 @@ export const BASE_CSS = `
 
 /* Screenshots keep freehand SVG ink while removing every piece of overlay chrome. */
 .layer--capturing .panel,
+.layer--capturing .tray-tab,
 .layer--capturing .highlight,
 .layer--capturing .child,
 .layer--capturing .box-band,
@@ -117,7 +118,8 @@ export const BASE_CSS = `
 .circle--accent { background: var(--accent); color: var(--on-accent); }
 .circle--accent:hover { background: var(--accent-bright); color: var(--on-accent); }
 
-.circle--accent:disabled {
+.circle--accent:disabled,
+.circle--accent:disabled:hover {
   opacity: 1;
   background: var(--surface-highest);
   color: var(--text-faint);
@@ -153,6 +155,22 @@ export const BASE_CSS = `
   color: rgba(189, 200, 209, 0.5);
 }
 
+.pill--outline { border-color: var(--line-strong); color: var(--text); }
+.pill--outline:hover { background: rgba(255, 255, 255, 0.05); color: #fff; }
+
+/* ---------- keyboard focus ---------- */
+
+/*
+ * Every control gets the same ring, drawn as an outline so it never fights a
+ * control's own box-shadow. Pointer users never see it.
+ */
+.panel button:focus-visible,
+.panel select:focus-visible,
+.tray-tab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 /* ---------- tooltip ---------- */
 
 .tip-anchor { position: relative; display: flex; }
@@ -178,4 +196,12 @@ export const BASE_CSS = `
 }
 
 .tip-anchor:hover .tip { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ---------- reduced motion ---------- */
+
+/* Menus and cards simply appear; the refresh spinner stays, since it is the
+   only sign that anything is happening. */
+@media (prefers-reduced-motion: reduce) {
+  .panel, .panel *, .tray-tab, .highlight, .outline { transition: none !important; }
+}
 `;

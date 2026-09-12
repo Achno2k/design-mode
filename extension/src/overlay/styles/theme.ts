@@ -17,6 +17,15 @@ export const THEME_CSS = `
   --surface-high: #2a2a2a;
   --surface-highest: #353534;
 
+  /* The bar and what opens out of it: one flat surface, one step up, one step down. */
+  --surface-bar: #1c1c1c;
+  --surface-raised: #232323;
+  --surface-sunken: #121212;
+  --line: rgba(255, 255, 255, 0.07);
+  --line-strong: rgba(255, 255, 255, 0.14);
+  --shadow-bar: 0 24px 60px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.35);
+  --shadow-menu: 0 16px 40px rgba(0, 0, 0, 0.5);
+
   --outline-variant: #3e484f;
   --outline: #87929a;
   --hairline: rgba(62, 72, 79, 0.3);
@@ -30,8 +39,14 @@ export const THEME_CSS = `
   --accent-dim: #7bd0ff;
   --accent-container: #38bdf8;
   --on-accent: #00354a;
+  --accent-soft: rgba(142, 213, 255, 0.18);
   --focus-ring: 0 0 0 2px rgba(142, 213, 255, 0.2);
 
+  /* Drawing has its own warmth, so the mode pill says which tool is in hand. */
+  --ink: #ff8a6a;
+  --ink-soft: rgba(255, 122, 92, 0.2);
+
+  --ok: #7ee787;
   --warning: #f5c26b;
   --error: #ffb4ab;
 
@@ -42,6 +57,6 @@ export const THEME_CSS = `
 
   font-family: "SF Pro", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
     "Helvetica Neue", sans-serif;
-  font-size: 14px;
+  font-size: 13px;
 }
 `;

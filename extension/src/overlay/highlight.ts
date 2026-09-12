@@ -6,13 +6,14 @@ export interface Highlight {
   /** Outline the hovered element, and the child components inside it. */
   show(element: Element, label: string): void;
   /**
-   * Outline one element on its own, with no child boxes.
+   * Outline one element on its own, with no child boxes and no chip.
    *
    * Used while a comment is being written: the element being described has to
    * stay visible, but the tree around it is hover guidance and would only
-   * compete with the composer.
+   * compete with the composer, and the chip would sit exactly where the
+   * composer opens — the composer names the element itself.
    */
-  pin(element: Element, label: string): void;
+  pin(element: Element): void;
   hide(): void;
 }
 
@@ -22,8 +23,10 @@ const TREE_COLORS = 6;
 /**
  * Outline the element under the pointer, and its child components with it.
  *
- * Every box is `position: fixed` and fed viewport coordinates straight from
- * `getBoundingClientRect`, so they track scrolling without any listeners.
+ * Every box is `position: fixed` and fed viewport coordinates from
+ * `getBoundingClientRect`. The pointer feeds them on every move; a scroll or
+ * resize with the pointer still measures again, or the box would stay behind
+ * while the element moved out from under it.
  *
  * Child boxes are pooled and re-measured on each move rather than rebuilt: the
  * *set* of children only changes when the hovered element does, but where they
@@ -35,7 +38,24 @@ export function createHighlight(layer: HTMLElement, host: Element): Highlight {
   const childBoxes: HTMLElement[] = [];
   let hovered: Element | null = null;
   let children: Element[] = [];
+  /** What the box is on right now, so a scroll can measure it again. */
+  let shown: { element: Element; label: string | null } | null = null;
   layer.append(box, chip);
+
+  function follow(): void {
+    // Re-injection replaces the whole overlay; the old boxes let go here.
+    if (!layer.isConnected) {
+      window.removeEventListener('scroll', follow, true);
+      window.removeEventListener('resize', follow);
+      return;
+    }
+    if (shown === null) return;
+    outline(shown.element, shown.label);
+    drawChildren();
+  }
+
+  window.addEventListener('scroll', follow, { capture: true, passive: true });
+  window.addEventListener('resize', follow);
 
   return {
     show(element, label) {
@@ -47,19 +67,21 @@ export function createHighlight(layer: HTMLElement, host: Element): Highlight {
       drawChildren();
     },
 
-    pin(element, label) {
-      outline(element, label);
+    pin(element) {
+      outline(element, null);
       forgetChildren();
     },
 
     hide() {
+      shown = null;
       box.setAttribute('hidden', '');
       chip.setAttribute('hidden', '');
       forgetChildren();
     },
   };
 
-  function outline(element: Element, label: string): void {
+  function outline(element: Element, label: string | null): void {
+    shown = { element, label };
     const rect = element.getBoundingClientRect();
     Object.assign(box.style, {
       left: `${rect.left}px`,
@@ -69,6 +91,10 @@ export function createHighlight(layer: HTMLElement, host: Element): Highlight {
     });
     box.removeAttribute('hidden');
 
+    if (label === null) {
+      chip.setAttribute('hidden', '');
+      return;
+    }
     chip.textContent = label;
     // Sit the chip above the element, or below it when there is no room.
     const above = rect.top > 24;
