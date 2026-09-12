@@ -37,6 +37,13 @@ export const config = {
    */
   version: process.env.NUDGE_VERSION ?? process.env.npm_package_version,
 
+  /**
+   * The command the pairing card tells the user to run for the extension
+   * folder. `bin/nudge` knows how it was installed and passes the right one;
+   * `npm run dev` in a clone has no bin, so it gets the clone's own command.
+   */
+  extensionCommand: process.env.NUDGE_EXTENSION_COMMAND ?? 'npx . extension',
+
   /** How long a live-reload poll is held open before answering with no change. */
   buildPollMs: 25_000,
 

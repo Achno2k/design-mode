@@ -27,37 +27,43 @@ you select + comment in the browser
 Both halves ship in one npm package: the daemon runs from it, and the built
 extension rides along inside it.
 
-**1. Start the daemon**, in a pane in the herdr session you want reviews sent to:
+**1. Install it once:**
 
 ```bash
-npx nudge-mode
+npm install -g nudge-mode
 ```
 
-It listens on `127.0.0.1:8791` and prints a **pairing code**:
+A global install matters here: Chrome loads the extension from wherever the
+package sits on disk, and a global install stays put. `npx nudge-mode` works for
+a one-off try, but its folder lives in npm's cache, which can be cleared or
+replaced on the next version and would leave Chrome pointing at nothing.
 
+**2. Start the daemon**, in a pane in the herdr session you want reviews sent to:
+
+```bash
+nudge
 ```
-[nudge] Pairing code: 8b5296f8ea3180a2397bf57e6384e9ea
-```
 
-Loopback only — it runs `herdr` commands and must never be reachable from the
-network. The code is generated once and kept at `~/.nudge/token`
-(mode `0600`), so it survives restarts.
+It draws a **pairing code** in a card, listens on `127.0.0.1:8791`, and stays up
+for the session. Loopback only — it runs `herdr` commands and must never be
+reachable from the network. The code is generated once and kept at
+`~/.nudge/token` (mode `0600`), so it survives restarts.
 
-**2. Load the extension.** It is not on the Chrome Web Store, so Chrome loads it
+**3. Load the extension.** It is not on the Chrome Web Store, so Chrome loads it
 from disk. Ask the package where it lives:
 
 ```bash
-npx nudge-mode extension     # prints the folder; add | pbcopy to copy it
+nudge extension     # prints the folder; add | pbcopy to copy it
 ```
 
 Then open `chrome://extensions`, turn on **Developer mode**, choose **Load
 unpacked**, and pick that folder. The manifest pins a public key, so the
 extension keeps the same id across reinstalls.
 
-Updates arrive the same way code does in development: `npm update`, and the
-running daemon tells the extension to reload itself.
+Updates arrive the same way code does in development: `npm update -g nudge-mode`,
+and the running daemon tells the extension to reload itself from the same folder.
 
-**3. Pair them.** Open the extension popup and paste the pairing code. Without
+**4. Pair them.** Open the extension popup and paste the pairing code. Without
 it the daemon answers `401` — see [Why pairing exists](#why-pairing-exists).
 
 ### From a clone

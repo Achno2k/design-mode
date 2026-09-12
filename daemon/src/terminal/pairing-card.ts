@@ -6,21 +6,25 @@ import { palette } from './palette.ts';
 const MARGIN = '  ';
 const PADDING = 3;
 const TITLE = 'pair the extension';
-const EXTENSION_COMMAND = 'npx nudge-mode extension';
 
 /**
  * The pairing code and the two steps that use it, boxed where the terminal is
  * wide enough and bare where it is not. The code stays one unbroken word so a
  * double-click selects all of it; grouping it would paste spaces into the popup.
  */
-export function renderPairingCard(token: string, paint: Paint, columns: number): string[] {
-  const body = cardBody(token, paint);
+export function renderPairingCard(
+  token: string,
+  paint: Paint,
+  columns: number,
+  extensionCommand: string,
+): string[] {
+  const body = cardBody(token, paint, extensionCommand);
   const inner = Math.max(...body.map(visibleWidth)) + PADDING * 2;
   if (MARGIN.length + inner + 2 > columns) return body.map((row) => MARGIN + row);
   return frame(body, inner, paint);
 }
 
-function cardBody(token: string, paint: Paint): string[] {
+function cardBody(token: string, paint: Paint, extensionCommand: string): string[] {
   const muted = (text: string): string => paint.fg(palette.muted, text);
   const step = (label: string): string => paint.bold(paint.fg(palette.accent, label));
   return [
@@ -29,7 +33,7 @@ function cardBody(token: string, paint: Paint): string[] {
     paint.bold(gradientText(token, paint, palette.gradient)),
     '',
     `${step('1')}  Load the extension in Chrome`,
-    `   ${muted('$')} ${paint.fg(palette.text, EXTENSION_COMMAND)}`,
+    `   ${muted('$')} ${paint.fg(palette.text, extensionCommand)}`,
     `   ${muted('then Load unpacked that folder in chrome://extensions')}`,
     `${step('2')}  Paste the code into the extension popup`,
     '',

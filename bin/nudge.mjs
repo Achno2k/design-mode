@@ -23,6 +23,20 @@ const DAEMON_SOURCE = new URL('../daemon/src/index.ts', import.meta.url);
 
 const [command] = process.argv.slice(2);
 
+/**
+ * How this copy was installed decides which command the pairing card should
+ * print for the extension folder, and whether that folder can be trusted to
+ * stay put. `npx nudge-mode` runs out of npm's cache, which npm may clear or
+ * replace on the next version; a clone has no `nudge` bin at all.
+ */
+const FROM_NPX_CACHE = /[\\/]_npx[\\/]/.test(EXTENSION_DIR);
+const FROM_CLONE = await exists(DAEMON_SOURCE);
+const EXTENSION_COMMAND = FROM_CLONE
+  ? 'npx . extension'
+  : FROM_NPX_CACHE
+    ? 'npx nudge-mode extension'
+    : 'nudge extension';
+
 switch (command) {
   case undefined:
     await startDaemon();
@@ -58,6 +72,7 @@ async function startDaemon() {
 
   process.env.NUDGE_DIST ??= EXTENSION_DIR;
   process.env.NUDGE_VERSION ??= await readVersion();
+  process.env.NUDGE_EXTENSION_COMMAND ??= EXTENSION_COMMAND;
 
   if (await exists(BUNDLED_DAEMON)) {
     await import(BUNDLED_DAEMON.href);
@@ -79,8 +94,8 @@ async function startDaemon() {
 /**
  * Chrome cannot install this from a URL, so the path is the deliverable.
  *
- * It is printed on its own line, unadorned, so `nudge-mode extension`
- * can be piped straight into `pbcopy` while the instructions go to stderr.
+ * It is printed on its own line, unadorned, so `nudge extension` can be
+ * piped straight into `pbcopy` while the instructions go to stderr.
  */
 async function printExtensionPath() {
   if (!(await exists(EXTENSION_DIR))) {
@@ -95,6 +110,13 @@ async function printExtensionPath() {
   console.error('  1. Open chrome://extensions');
   console.error('  2. Turn on Developer mode');
   console.error('  3. Choose "Load unpacked" and pick the directory below\n');
+  if (FROM_NPX_CACHE) {
+    console.error(
+      'Note: this directory is inside the npx cache, which npm can clear or replace on the\n' +
+        'next version, and Chrome would then lose the extension. For daily use install it\n' +
+        'once with `npm install -g nudge-mode`, then run `nudge extension`.\n',
+    );
+  }
   console.log(EXTENSION_DIR);
 }
 
@@ -119,6 +141,7 @@ async function exists(target) {
 
 function printUsage() {
   console.error('Usage:');
-  console.error('  nudge-mode              Start the daemon (inside a herdr pane)');
-  console.error('  nudge-mode extension    Print the directory to load unpacked in Chrome');
+  console.error('  nudge              Start the daemon (inside a herdr pane)');
+  console.error('  nudge extension    Print the directory to load unpacked in Chrome');
+  console.error('\nInstalled with `npm install -g nudge-mode`; `npx nudge-mode` works the same for a one-off.');
 }
