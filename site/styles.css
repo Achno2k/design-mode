@@ -406,8 +406,11 @@ kbd, .key {
 /* footer */
 
 .footer { margin-top: 7rem; border-top: 1px solid var(--line); padding-block: 1.75rem; font-size: .8125rem; color: var(--faint); }
-.footer__inner { display: flex; justify-content: space-between; flex-wrap: wrap; gap: .75rem 1.5rem; }
-.footer__links { display: flex; gap: 1.5rem; }
+/* One row on wide screens: name and licence left, the links and the credit right. */
+.footer__inner { display: flex; align-items: center; gap: .75rem 1.5rem; }
+.footer__meta { margin-right: auto; }
+.footer__links { display: flex; gap: 1.5rem; white-space: nowrap; }
+.footer__credit { white-space: nowrap; }
 .footer a { transition: color var(--dur) var(--ease); }
 .footer a:hover { color: var(--accent); }
 
@@ -442,6 +445,10 @@ kbd, .key {
   .loop dt { border-bottom: 0; padding-bottom: 0; }
   .loop dd { padding-top: .4rem; }
   .footer { margin-top: 5rem; }
+  /* Narrow: name and the social links share one line, the credit sits centred beneath. */
+  .footer__inner { flex-wrap: wrap; justify-content: space-between; }
+  .footer__meta { margin-right: 0; }
+  .footer__credit { flex-basis: 100%; text-align: center; margin-top: .5rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {
